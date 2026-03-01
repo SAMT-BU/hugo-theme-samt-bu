@@ -16,7 +16,7 @@
 <div class="tema-switcher">
   <div class="tema-switcher-toggle" id="tema-toggle">
     <span class="tema-label">{{ i18n "navSwitcherLabel" | default "Innhold" }}:</span>
-    <span class="tema-active">{{ if $activeTitle }}{{ $activeTitle }}{{ else }}{{ i18n "navSwitcherPlaceholder" | default "Velg seksjon" }}{{ end }}</span>
+    <span class="tema-active">{{ if $activeID }}{{ i18n $activeID | default $activeTitle }}{{ else }}{{ i18n "navSwitcherPlaceholder" | default "Velg seksjon" }}{{ end }}</span>
     <i class="fa fa-caret-down"></i>
   </div>
   <ul class="tema-switcher-menu" id="tema-menu">
@@ -25,7 +25,7 @@
     <li class="{{ if $isActive }}active{{ end }}">
       <a href="{{ .url | relURL }}">
         {{ with .icon }}<i class="fa {{ . }}"></i>{{ end }}
-        <span>{{ .title }}</span>
+        <span>{{ i18n .id | default .title }}</span>
         {{ if $isActive }}<i class="fa fa-check"></i>{{ end }}
       </a>
     </li>
