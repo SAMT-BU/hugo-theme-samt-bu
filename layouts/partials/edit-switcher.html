@@ -1,26 +1,41 @@
 {{/* Edit switcher: dropdown for å redigere gjeldende side i Decap CMS eller gå til CMS-oversikt.
-     «Side»/«Page» → deep-link til gjeldende side.
-     «Annet»/«Other» → CMS-oversikt.
-     Sider fra Hugo Modules (teams/, utkast/) får «Side» deaktivert (fase 1). */}}
+     «Denne siden»/«This page» → deep-link til gjeldende side i riktig portal.
+     «Andre valg»/«Other options» → CMS-oversikt.
+     Modul-sider (teams/team-architecture/*, utkast/*) peker til sine egne portaler og collections.
+     Rot-sider (tom entryPath) får «Denne siden» deaktivert. */}}
 {{ $lang := .Site.Language.Lang }}
-{{ $isModule := false }}
 {{ $entryPath := "" }}
 {{ $collection := "docs" }}
+{{ $portalPath := cond (eq $lang "en") "edit/docs-en/" "edit/docs-nb/" }}
+{{ $overviewPath := cond (eq $lang "en") "edit/en/" "edit/" }}
 
 {{ if .File }}
   {{/* path.Dir normaliserer Windows-backslash til forward slash */}}
   {{ $dir := path.Dir .File.Path }}
-  {{/* "utkast" er hel-modul (ingen lokal rot), sjekk eksakt match OG substier.
-       "teams" er lokal seksjonshode; bare teams/team-architecture/* er modul. */}}
-  {{ $isModule = or (hasPrefix $dir "teams/") (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
-  {{ if not $isModule }}
+
+  {{ if hasPrefix $dir "teams/" }}
+    {{/* team-architecture modul: strip "teams/team-architecture" + eventuell "/" */}}
+    {{ $collection = "arkitektur" }}
+    {{ $portalPath = cond (eq $lang "en") "edit/arkitektur-en/" "edit/arkitektur-nb/" }}
+    {{ $rel := strings.TrimPrefix "teams/team-architecture" $dir }}
+    {{ $rel = strings.TrimPrefix "/" $rel }}
+    {{ $entryPath = $rel }}
+
+  {{ else if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
+    {{/* samt-bu-drafts modul: strip "utkast" + eventuell "/" */}}
+    {{ $collection = "utkast" }}
+    {{ $portalPath = cond (eq $lang "en") "edit/utkast-en/" "edit/utkast-nb/" }}
+    {{ $rel := strings.TrimPrefix "utkast" $dir }}
+    {{ $rel = strings.TrimPrefix "/" $rel }}
+    {{ $entryPath = $rel }}
+
+  {{ else }}
+    {{/* Lokal docs-side */}}
     {{ $entryPath = strings.TrimPrefix "." $dir }}
     {{ $entryPath = strings.TrimPrefix "/" $entryPath }}
   {{ end }}
 {{ end }}
 
-{{ $portalPath := cond (eq $lang "en") "edit/docs-en/" "edit/docs-nb/" }}
-{{ $overviewPath := cond (eq $lang "en") "edit/en/" "edit/" }}
 {{ $portalURL := $portalPath | relURL }}
 {{ $overviewURL := $overviewPath | relURL }}
 {{ $pageEditURL := printf "%s#/collections/%s/entries/%s/_index" $portalURL $collection $entryPath }}
@@ -31,7 +46,7 @@
     <i class="fa fa-caret-down"></i>
   </div>
   <ul class="tema-switcher-menu align-right" id="edit-menu">
-    {{ if and .File (not $isModule) (ne $entryPath "") }}
+    {{ if and .File (ne $entryPath "") }}
     <li>
       <a href="{{ $pageEditURL }}">
         <i class="fa fa-file-text-o"></i>
