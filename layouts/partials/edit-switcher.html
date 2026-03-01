@@ -2,9 +2,10 @@
      «Denne siden»/«This page» → deep-link til gjeldende side i riktig portal.
      «Andre valg»/«Other options» → CMS-oversikt.
      Modul-sider (teams/team-architecture/*, utkast/*) peker til sine egne portaler og collections.
-     Rot-sider (tom entryPath) får «Denne siden» deaktivert. */}}
+     Entry-slug er full relativ sti inkl. /_index-suffiks (f.eks. "kommuneforlaget/_index").
+     Rot-sider i moduler bruker "_index" som slug; docs-root forblir deaktivert (tom slug). */}}
 {{ $lang := .Site.Language.Lang }}
-{{ $entryPath := "" }}
+{{ $entrySlug := "" }}
 {{ $collection := "docs" }}
 {{ $portalPath := cond (eq $lang "en") "edit/docs-en/" "edit/docs-nb/" }}
 {{ $overviewPath := cond (eq $lang "en") "edit/en/" "edit/" }}
@@ -12,33 +13,44 @@
 {{ if .File }}
   {{/* path.Dir normaliserer Windows-backslash til forward slash */}}
   {{ $dir := path.Dir .File.Path }}
+  {{ $rel := "" }}
+  {{ $isModulePage := false }}
 
   {{ if hasPrefix $dir "teams/" }}
-    {{/* team-architecture modul: strip "teams/team-architecture" + eventuell "/" */}}
+    {{/* team-architecture modul */}}
+    {{ $isModulePage = true }}
     {{ $collection = "arkitektur" }}
     {{ $portalPath = cond (eq $lang "en") "edit/arkitektur-en/" "edit/arkitektur-nb/" }}
-    {{ $rel := strings.TrimPrefix "teams/team-architecture" $dir }}
+    {{ $rel = strings.TrimPrefix "teams/team-architecture" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
-    {{ $entryPath = $rel }}
 
   {{ else if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
-    {{/* samt-bu-drafts modul: strip "utkast" + eventuell "/" */}}
+    {{/* samt-bu-drafts modul */}}
+    {{ $isModulePage = true }}
     {{ $collection = "utkast" }}
     {{ $portalPath = cond (eq $lang "en") "edit/utkast-en/" "edit/utkast-nb/" }}
-    {{ $rel := strings.TrimPrefix "utkast" $dir }}
+    {{ $rel = strings.TrimPrefix "utkast" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
-    {{ $entryPath = $rel }}
 
   {{ else }}
     {{/* Lokal docs-side */}}
-    {{ $entryPath = strings.TrimPrefix "." $dir }}
-    {{ $entryPath = strings.TrimPrefix "/" $entryPath }}
+    {{ $rel = strings.TrimPrefix "." $dir }}
+    {{ $rel = strings.TrimPrefix "/" $rel }}
+  {{ end }}
+
+  {{ if eq $rel "" }}
+    {{/* Rot-side: modul-rot er redigerbar (slug = "_index"), docs-rot forblir deaktivert */}}
+    {{ if $isModulePage }}
+      {{ $entrySlug = "_index" }}
+    {{ end }}
+  {{ else }}
+    {{ $entrySlug = printf "%s/_index" $rel }}
   {{ end }}
 {{ end }}
 
 {{ $portalURL := $portalPath | relURL }}
 {{ $overviewURL := $overviewPath | relURL }}
-{{ $pageEditURL := printf "%s#/collections/%s/entries/%s/_index" $portalURL $collection $entryPath }}
+{{ $pageEditURL := printf "%s#/collections/%s/entries/%s" $portalURL $collection $entrySlug }}
 
 <div class="tema-switcher">
   <div class="tema-switcher-toggle" id="edit-toggle">
@@ -46,7 +58,7 @@
     <i class="fa fa-caret-down"></i>
   </div>
   <ul class="tema-switcher-menu align-right" id="edit-menu">
-    {{ if and .File (ne $entryPath "") }}
+    {{ if and .File (ne $entrySlug "") }}
     <li>
       <a href="{{ $pageEditURL }}">
         <i class="fa fa-file-text-o"></i>
