@@ -7,7 +7,7 @@
 
 {{ if $items }}
   {{ range $items }}
-    {{ if findRE .id $url }}
+    {{ if findRE (printf "/%s/" .id) $url }}
       {{ $activeID = .id }}
       {{ $activeTitle = .title }}
     {{ end }}
