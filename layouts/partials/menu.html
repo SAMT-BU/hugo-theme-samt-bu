@@ -64,7 +64,7 @@
         {{ $numberOfPages := (add (len .Pages) (len .Sections)) }}
         {{ if ne $numberOfPages 0 }}
 
-          {{if or (.IsAncestor $currentNode) (.Params.alwaysopen) }}
+          {{if or (.IsAncestor $currentNode) (eq .RelPermalink $currentNode.RelPermalink) (.Params.alwaysopen) }}
             <i class="fa fa-sort-down fa-lg category-icon"></i>
           {{else}}
             <i class="fa fa-caret-right fa-lg category-icon"></i>
