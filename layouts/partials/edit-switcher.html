@@ -60,8 +60,10 @@
     {{ $entrySlug = printf "%s/_index" $rel }}
   {{ end }}
 
-  {{/* GitHub «create file»-URL for å opprette nytt underkapittel */}}
-  {{ $contentPath := cond (eq $rel "") "content/" (printf "content/%s/" $rel) }}
+  {{/* GitHub «create file»-URL for å opprette nytt underkapittel.
+       Inkluderer plassholder-filnavn slik at GitHub forhåndsutfyller
+       mappestruktur: brukeren bytter ut «nytt-kapittel» og beholder /_index.nb.md */}}
+  {{ $contentPath := cond (eq $rel "") "content/nytt-kapittel/_index.nb.md" (printf "content/%s/nytt-kapittel/_index.nb.md" $rel) }}
   {{ $addChildURL = printf "https://github.com/SAMT-X/%s/new/main/%s" $githubRepo $contentPath }}
 {{ end }}
 
