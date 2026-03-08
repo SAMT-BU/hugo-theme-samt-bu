@@ -32,6 +32,14 @@
     {{ $rel = strings.TrimPrefix "utkast" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
 
+  {{ else if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}
+    {{/* solution-samt-bu-docs modul */}}
+    {{ $isModulePage = true }}
+    {{ $collection = "loesninger" }}
+    {{ $portalPath = cond (eq $lang "en") "edit/loesninger-en/" "edit/loesninger-nb/" }}
+    {{ $rel = strings.TrimPrefix "loesninger/cms-loesninger/samt-bu-docs" $dir }}
+    {{ $rel = strings.TrimPrefix "/" $rel }}
+
   {{ else }}
     {{/* Lokal docs-side */}}
     {{ $rel = strings.TrimPrefix "." $dir }}
