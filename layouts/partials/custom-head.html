@@ -247,6 +247,18 @@
   /* alwaysopen-noder: hold barn synlige, men IKKE bold (parent-klassen brukes til brødsmuleindikasjon) */
   #sidebar ul.topics li.alwaysopen > ul { display: block; }
 
+  /* Pilikon er søsken av <a> (ikke barn) – adskilt klikkområde, ingen navigasjon ved klikk */
+  #sidebar ul li { position: relative; }
+  #sidebar ul li > i.category-icon {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    padding: 6px 8px;
+  }
+  #sidebar ul li > a { padding-right: 28px; }
+
   /* Toggle buttons (inside heading rows) */
   .sidebar-toggle-btn {
     flex-shrink: 0;
