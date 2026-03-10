@@ -490,7 +490,7 @@ function getDecapToken() {
     document.getElementById('del-heading').textContent =
       delLang === 'en' ? 'Deleting "' + delTitle + '"…' : 'Sletter «' + delTitle + '»…';
     document.getElementById('del-build-status-text').textContent =
-      delLang === 'en' ? 'Waiting for build to start…' : 'Venter på at byggejobben starter…';
+      delLang === 'en' ? 'Waiting for build to start…' : 'Bygging av nettstedet starter om litt…';
     document.getElementById('del-panel-done').style.display = 'none';
   }
 
@@ -515,7 +515,7 @@ function getDecapToken() {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (!data.workflow_runs || !data.workflow_runs.length) {
-            statusEl.textContent = (delLang === 'en' ? 'Waiting… (' : 'Venter… (') + elapsed + 's)';
+            statusEl.textContent = (delLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
             return;
           }
           var run = null;
@@ -525,17 +525,17 @@ function getDecapToken() {
             }
           }
           if (!run) {
-            statusEl.textContent = (delLang === 'en' ? 'Waiting… (' : 'Venter… (') + elapsed + 's)';
+            statusEl.textContent = (delLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
             return;
           }
           if (run.status === 'queued') {
             statusEl.textContent = (delLang === 'en'
               ? 'Build queued… (' + elapsed + 's)'
-              : 'Byggejobben er i kø… (' + elapsed + 's)');
+              : 'Bygging av nettstedet er i kø… (' + elapsed + 's)');
           } else if (run.status === 'in_progress') {
             statusEl.textContent = (delLang === 'en'
               ? 'Building site – expected ~1 min – ' + elapsed + 's so far'
-              : 'Bygging av nettsted pågår – forventet ~1 min – ' + elapsed + ' sek så langt');
+              : 'Bygging av nettstedet pågår – forventet ~1 min – ' + elapsed + ' sek så langt');
           } else if (run.status === 'completed') {
             clearInterval(activePollTimer);
             activePollTimer = null;
