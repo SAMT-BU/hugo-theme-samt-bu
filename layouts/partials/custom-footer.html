@@ -1,3 +1,17 @@
+<!-- Delt GitHub-token-hjelper (global, brukes av alle redigeringsfunksjoner) -->
+<script>
+function getDecapToken() {
+  var keys = ['netlify-cms-user', 'decap-cms-user'];
+  for (var i = 0; i < keys.length; i++) {
+    try {
+      var val = localStorage.getItem(keys[i]);
+      if (val) { var parsed = JSON.parse(val); if (parsed && parsed.token) return parsed.token; }
+    } catch(e) {}
+  }
+  return null;
+}
+</script>
+
 <!-- Language switcher toggle -->
 <script>
 (function() {
@@ -76,20 +90,6 @@
     'Godkjent': 'Approved',
     'Avbrutt': 'Cancelled'
   };
-
-  function getDecapToken() {
-    var keys = ['netlify-cms-user', 'decap-cms-user'];
-    for (var i = 0; i < keys.length; i++) {
-      try {
-        var val = localStorage.getItem(keys[i]);
-        if (val) {
-          var parsed = JSON.parse(val);
-          if (parsed && parsed.token) return parsed.token;
-        }
-      } catch(e) {}
-    }
-    return null;
-  }
 
   function generateSlug(text) {
     return text.toLowerCase()
@@ -375,6 +375,176 @@
 
   function hideMsg() {
     document.getElementById('np-msg').style.display = 'none';
+  }
+})();
+</script>
+
+<!-- Slett denne siden: dialog og GitHub API -->
+<script>
+(function() {
+  var overlay = document.getElementById('del-overlay');
+  if (!overlay) return;
+
+  var delRepo = '', delDirPath = '', delLang = 'nb', delTitle = '', delParentUrl = '';
+
+  window.openDeleteDialog = function(repo, dirPath, lang, title, parentUrl) {
+    delRepo = repo;
+    delDirPath = dirPath;
+    delLang = lang || 'nb';
+    delTitle = title;
+    delParentUrl = parentUrl;
+
+    if (!getDecapToken()) {
+      alert(lang === 'en'
+        ? 'You must be logged in via Decap CMS before deleting pages.'
+        : 'Du må logge inn via Decap CMS (Endre-menyen) før du kan slette sider.');
+      return;
+    }
+
+    document.getElementById('del-heading').textContent =
+      lang === 'en' ? 'Delete this page' : 'Slett denne siden';
+    document.getElementById('del-confirm-text').textContent =
+      lang === 'en' ? 'Delete "' + title + '"?' : 'Vil du slette «' + title + '»?';
+    document.getElementById('del-cancel').textContent = lang === 'en' ? 'Cancel' : 'Avbryt';
+    document.getElementById('del-confirm-btn').textContent = lang === 'en' ? 'Delete page' : 'Slett siden';
+    document.getElementById('del-confirm-btn').disabled = false;
+    document.getElementById('del-cancel').disabled = false;
+    document.getElementById('del-error').style.display = 'none';
+    overlay.style.display = 'block';
+  };
+
+  function closeDialog() { overlay.style.display = 'none'; }
+
+  overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDialog(); e.stopPropagation(); });
+  document.getElementById('del-close-x').addEventListener('click', closeDialog);
+  document.getElementById('del-cancel').addEventListener('click', closeDialog);
+
+  document.getElementById('del-confirm-btn').addEventListener('click', function() {
+    var token = getDecapToken();
+    if (!token) { closeDialog(); return; }
+
+    var confirmBtn = document.getElementById('del-confirm-btn');
+    var cancelBtn  = document.getElementById('del-cancel');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = delLang === 'en' ? 'Deleting…' : 'Sletter…';
+    cancelBtn.disabled = true;
+
+    var startTime = Date.now();
+    var nbPath = delDirPath + '/_index.nb.md';
+    var enPath = delDirPath + '/_index.en.md';
+
+    deleteFilesInOneCommit(token, delRepo, [nbPath, enPath], 'Slett side: ' + delTitle)
+      .then(function() {
+        overlay.style.display = 'none';
+        showBuildPanel();
+        pollBuild(startTime);
+      })
+      .catch(function(err) {
+        var errEl = document.getElementById('del-error');
+        errEl.style.display = 'block';
+        errEl.textContent = 'Feil: ' + err.message;
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = delLang === 'en' ? 'Delete page' : 'Slett siden';
+        cancelBtn.disabled = false;
+      });
+  });
+
+  function deleteFilesInOneCommit(token, repo, paths, commitMsg) {
+    var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
+    var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
+    var headSha;
+    return fetch(apiBase + '/git/ref/heads/main', { headers: h })
+      .then(function(r) { return r.json(); })
+      .then(function(ref) {
+        headSha = ref.object.sha;
+        return fetch(apiBase + '/git/commits/' + headSha, { headers: h });
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(commit) {
+        var items = paths.map(function(p) { return { path: p, mode: '100644', type: 'blob', sha: null }; });
+        return fetch(apiBase + '/git/trees', { method: 'POST', headers: h, body: JSON.stringify({ base_tree: commit.tree.sha, tree: items }) });
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(tree) {
+        return fetch(apiBase + '/git/commits', { method: 'POST', headers: h, body: JSON.stringify({ message: commitMsg, tree: tree.sha, parents: [headSha] }) });
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(newCommit) {
+        return fetch(apiBase + '/git/refs/heads/main', { method: 'PATCH', headers: h, body: JSON.stringify({ sha: newCommit.sha }) });
+      })
+      .then(function(r) {
+        if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); });
+        return r.json();
+      });
+  }
+
+  function showBuildPanel() {
+    var panel = document.getElementById('del-build-panel');
+    if (!panel) return;
+    document.getElementById('del-panel-title').textContent =
+      delLang === 'en' ? 'Deleting "' + delTitle + '"' : 'Sletter «' + delTitle + '»';
+    document.getElementById('del-panel-status').textContent =
+      delLang === 'en' ? 'Waiting for build to start…' : 'Venter på at byggejobben starter…';
+    var doneBtn = document.getElementById('del-panel-done');
+    doneBtn.style.display = 'none';
+    doneBtn.textContent = delLang === 'en' ? 'Go to parent page' : 'Gå til overordnet side';
+    panel.style.display = 'block';
+  }
+
+  function pollBuild(startTime) {
+    var token = getDecapToken();
+    var h = { 'Accept': 'application/vnd.github+json' };
+    if (token) h['Authorization'] = 'token ' + token;
+    var elapsed = 0;
+
+    var pollTimer = setInterval(function() {
+      elapsed += 5;
+      var statusEl = document.getElementById('del-panel-status');
+      if (!statusEl) { clearInterval(pollTimer); return; }
+
+      fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.workflow_runs || !data.workflow_runs.length) {
+            statusEl.textContent = (delLang === 'en' ? 'Waiting… (' : 'Venter… (') + elapsed + 's)';
+            return;
+          }
+          var run = null;
+          for (var i = 0; i < data.workflow_runs.length; i++) {
+            if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) {
+              run = data.workflow_runs[i]; break;
+            }
+          }
+          if (!run) {
+            statusEl.textContent = (delLang === 'en' ? 'Waiting… (' : 'Venter… (') + elapsed + 's)';
+            return;
+          }
+          if (run.status === 'queued') {
+            statusEl.textContent = delLang === 'en' ? 'Build queued…' : 'Byggejobben er i kø…';
+          } else if (run.status === 'in_progress') {
+            statusEl.textContent = (delLang === 'en' ? 'Building… (' : 'Bygger… (') + elapsed + 's)';
+          } else if (run.status === 'completed') {
+            clearInterval(pollTimer);
+            var doneBtn = document.getElementById('del-panel-done');
+            if (run.conclusion === 'success') {
+              statusEl.textContent = delLang === 'en' ? '✓ Done! Navigating in 3s…' : '✓ Ferdig! Navigerer om 3 sek…';
+              if (doneBtn) doneBtn.style.display = 'inline-block';
+              setTimeout(function() { window.location.href = delParentUrl; }, 3000);
+            } else {
+              statusEl.textContent = (delLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + run.conclusion;
+              if (doneBtn) doneBtn.style.display = 'inline-block';
+            }
+          }
+        })
+        .catch(function() {
+          statusEl.textContent = (delLang === 'en' ? 'Checking… (' : 'Sjekker… (') + elapsed + 's)';
+        });
+    }, 5000);
+
+    var closeBtn = document.getElementById('del-panel-close');
+    var doneBtn  = document.getElementById('del-panel-done');
+    if (closeBtn) closeBtn.onclick = function() { clearInterval(pollTimer); document.getElementById('del-build-panel').style.display = 'none'; };
+    if (doneBtn)  doneBtn.onclick  = function() { clearInterval(pollTimer); window.location.href = delParentUrl; };
   }
 })();
 </script>
