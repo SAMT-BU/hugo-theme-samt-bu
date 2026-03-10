@@ -14,9 +14,13 @@
 {{ $dirPath := "" }}
 {{ $parentUrl := "/" | relURL }}
 {{ with .Parent }}{{ $parentUrl = .RelPermalink }}{{ end }}
-{{/* Etter sletting: gå til forrige søsken om den finnes, ellers til forelder */}}
+{{/* Etter sletting: gå til forrige søsken, ellers neste søsken, ellers forelder */}}
 {{ $afterDeleteUrl := $parentUrl }}
-{{ with .PrevInSection }}{{ $afterDeleteUrl = .RelPermalink }}{{ end }}
+{{ if .PrevInSection }}
+  {{ $afterDeleteUrl = .PrevInSection.RelPermalink }}
+{{ else if .NextInSection }}
+  {{ $afterDeleteUrl = .NextInSection.RelPermalink }}
+{{ end }}
 
 {{ if .File }}
   {{/* path.Dir normaliserer Windows-backslash til forward slash */}}

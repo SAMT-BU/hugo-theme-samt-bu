@@ -531,9 +531,19 @@ function getDecapToken() {
             activePollTimer = null;
             var doneBtn = document.getElementById('del-panel-done');
             if (run.conclusion === 'success') {
-              statusEl.textContent = delLang === 'en' ? '✓ Done! Navigating in 3s…' : '✓ Ferdig! Navigerer om 3 sek…';
               if (doneBtn) doneBtn.style.display = 'inline-block';
-              setTimeout(function() { window.location.href = delParentUrl; }, 3000);
+              var secs = 3;
+              statusEl.textContent = (delLang === 'en' ? '✓ Done! Navigating in ' : '✓ Ferdig! Navigerer om ') + secs + (delLang === 'en' ? 's…' : ' sek…');
+              var cdTimer = setInterval(function() {
+                secs--;
+                if (secs <= 0) {
+                  clearInterval(cdTimer);
+                  window.location.href = delParentUrl;
+                  return;
+                }
+                var el = document.getElementById('del-build-status-text');
+                if (el) el.textContent = (delLang === 'en' ? '✓ Done! Navigating in ' : '✓ Ferdig! Navigerer om ') + secs + (delLang === 'en' ? 's…' : ' sek…');
+              }, 1000);
             } else {
               statusEl.textContent = (delLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + run.conclusion;
               if (doneBtn) doneBtn.style.display = 'inline-block';
