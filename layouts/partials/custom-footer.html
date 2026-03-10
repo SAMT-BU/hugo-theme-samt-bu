@@ -386,6 +386,7 @@ function getDecapToken() {
   if (!overlay) return;
 
   var delRepo = '', delDirPath = '', delLang = 'nb', delTitle = '', delParentUrl = '';
+  var activePollTimer = null;
 
   window.openDeleteDialog = function(repo, dirPath, lang, title, parentUrl) {
     delRepo = repo;
@@ -413,11 +414,17 @@ function getDecapToken() {
     overlay.style.display = 'block';
   };
 
-  function closeDialog() { overlay.style.display = 'none'; }
+  function closeDialog() {
+    if (activePollTimer) { clearInterval(activePollTimer); activePollTimer = null; }
+    overlay.style.display = 'none';
+    document.getElementById('del-confirm-section').style.display = 'block';
+    document.getElementById('del-build-section').style.display = 'none';
+  }
 
   overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDialog(); e.stopPropagation(); });
   document.getElementById('del-close-x').addEventListener('click', closeDialog);
   document.getElementById('del-cancel').addEventListener('click', closeDialog);
+  document.getElementById('del-panel-close').addEventListener('click', closeDialog);
 
   document.getElementById('del-confirm-btn').addEventListener('click', function() {
     var token = getDecapToken();
@@ -435,7 +442,6 @@ function getDecapToken() {
 
     deleteFilesInOneCommit(token, delRepo, [nbPath, enPath], 'Slett side: ' + delTitle)
       .then(function() {
-        overlay.style.display = 'none';
         showBuildPanel();
         pollBuild(startTime);
       })
@@ -479,16 +485,13 @@ function getDecapToken() {
   }
 
   function showBuildPanel() {
-    var panel = document.getElementById('del-build-panel');
-    if (!panel) return;
-    document.getElementById('del-panel-title').textContent =
-      delLang === 'en' ? 'Deleting "' + delTitle + '"' : 'Sletter «' + delTitle + '»';
-    document.getElementById('del-panel-status').textContent =
+    document.getElementById('del-confirm-section').style.display = 'none';
+    document.getElementById('del-build-section').style.display = 'block';
+    document.getElementById('del-heading').textContent =
+      delLang === 'en' ? 'Deleting "' + delTitle + '"…' : 'Sletter «' + delTitle + '»…';
+    document.getElementById('del-build-status-text').textContent =
       delLang === 'en' ? 'Waiting for build to start…' : 'Venter på at byggejobben starter…';
-    var doneBtn = document.getElementById('del-panel-done');
-    doneBtn.style.display = 'none';
-    doneBtn.textContent = delLang === 'en' ? 'Go to parent page' : 'Gå til overordnet side';
-    panel.style.display = 'block';
+    document.getElementById('del-panel-done').style.display = 'none';
   }
 
   function pollBuild(startTime) {
@@ -497,10 +500,10 @@ function getDecapToken() {
     if (token) h['Authorization'] = 'token ' + token;
     var elapsed = 0;
 
-    var pollTimer = setInterval(function() {
+    activePollTimer = setInterval(function() {
       elapsed += 5;
-      var statusEl = document.getElementById('del-panel-status');
-      if (!statusEl) { clearInterval(pollTimer); return; }
+      var statusEl = document.getElementById('del-build-status-text');
+      if (!statusEl) { clearInterval(activePollTimer); return; }
 
       fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h })
         .then(function(r) { return r.json(); })
@@ -524,12 +527,13 @@ function getDecapToken() {
           } else if (run.status === 'in_progress') {
             statusEl.textContent = (delLang === 'en' ? 'Building… (' : 'Bygger… (') + elapsed + 's)';
           } else if (run.status === 'completed') {
-            clearInterval(pollTimer);
+            clearInterval(activePollTimer);
+            activePollTimer = null;
             var doneBtn = document.getElementById('del-panel-done');
             if (run.conclusion === 'success') {
-              statusEl.textContent = delLang === 'en' ? '✓ Done! Navigating in 3s…' : '✓ Ferdig! Navigerer om 3 sek…';
+              statusEl.textContent = delLang === 'en' ? '✓ Done! Refreshing in 3s…' : '✓ Ferdig! Oppdaterer siden om 3 sek…';
               if (doneBtn) doneBtn.style.display = 'inline-block';
-              setTimeout(function() { window.location.href = delParentUrl; }, 3000);
+              setTimeout(function() { window.location.reload(); }, 3000);
             } else {
               statusEl.textContent = (delLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + run.conclusion;
               if (doneBtn) doneBtn.style.display = 'inline-block';
@@ -541,10 +545,10 @@ function getDecapToken() {
         });
     }, 5000);
 
-    var closeBtn = document.getElementById('del-panel-close');
-    var doneBtn  = document.getElementById('del-panel-done');
-    if (closeBtn) closeBtn.onclick = function() { clearInterval(pollTimer); document.getElementById('del-build-panel').style.display = 'none'; };
-    if (doneBtn)  doneBtn.onclick  = function() { clearInterval(pollTimer); window.location.href = delParentUrl; };
+    document.getElementById('del-panel-done').onclick = function() {
+      clearInterval(activePollTimer); activePollTimer = null;
+      window.location.reload();
+    };
   }
 })();
 </script>
