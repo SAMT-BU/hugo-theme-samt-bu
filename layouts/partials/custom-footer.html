@@ -253,48 +253,45 @@
       });
   });
 
+  // Samler alle vektjusteringer i én enkelt commit
   function shiftSiblings(token, repo, parentPath, minWeight, excludeSlug) {
-    return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/contents/' + parentPath, {
-      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(entries) {
-      if (!Array.isArray(entries)) return;
-      var dirs = entries.filter(function(e) { return e.type === 'dir' && e.name !== excludeSlug; });
-      return Promise.all(dirs.map(function(dir) {
-        var base = parentPath + '/' + dir.name;
-        return shiftFileWeight(token, repo, base + '/_index.nb.md', minWeight)
-          .then(function() { return shiftFileWeight(token, repo, base + '/_index.en.md', minWeight); });
-      }));
-    });
-  }
+    var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
+    var headers = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
 
-  function shiftFileWeight(token, repo, filePath, minWeight) {
-    return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/contents/' + filePath, {
-      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
-    })
-    .then(function(r) { return r.ok ? r.json() : null; })
-    .then(function(data) {
-      if (!data || !data.content) return;
-      var raw = data.content.replace(/\n/g, '');
-      var content = decodeURIComponent(escape(atob(raw)));
-      var match = content.match(/^weight:\s*(\d+)/m);
-      if (!match) return;
-      var w = parseInt(match[1], 10);
-      if (w < minWeight) return;
-      var updated = content.replace(/^(weight:\s*)\d+/m, '$1' + (w + 1));
-      var encoded = btoa(unescape(encodeURIComponent(updated)));
-      return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/contents/' + filePath, {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'token ' + token,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github+json'
-        },
-        body: JSON.stringify({ message: 'Auto: juster vekt etter ny side', content: encoded, sha: data.sha, branch: 'main' })
-      }).then(function(r) { if (!r.ok) throw new Error('Kunne ikke oppdatere ' + filePath); });
-    })
-    .catch(function() {}); // ignorer feil for enkeltfiler
+    return fetch(apiBase + '/contents/' + parentPath, { headers: headers })
+      .then(function(r) { return r.json(); })
+      .then(function(entries) {
+        if (!Array.isArray(entries)) return;
+        var dirs = entries.filter(function(e) { return e.type === 'dir' && e.name !== excludeSlug; });
+        var fetches = [];
+        dirs.forEach(function(dir) {
+          ['nb', 'en'].forEach(function(lang) {
+            var p = parentPath + '/' + dir.name + '/_index.' + lang + '.md';
+            fetches.push(
+              fetch(apiBase + '/contents/' + p, { headers: headers })
+                .then(function(r) { return r.ok ? r.json() : null; })
+                .then(function(data) { return data ? { path: p, data: data } : null; })
+                .catch(function() { return null; })
+            );
+          });
+        });
+        return Promise.all(fetches);
+      })
+      .then(function(results) {
+        if (!results) return;
+        var updates = [];
+        results.forEach(function(item) {
+          if (!item || !item.data || !item.data.content) return;
+          var content = decodeURIComponent(escape(atob(item.data.content.replace(/\n/g, ''))));
+          var match = content.match(/^weight:\s*(\d+)/m);
+          if (!match) return;
+          var w = parseInt(match[1], 10);
+          if (w < minWeight) return;
+          updates.push({ path: item.path, content: content.replace(/^(weight:\s*)\d+/m, '$1' + (w + 1)) });
+        });
+        if (updates.length === 0) return;
+        return createFilesInOneCommit(token, repo, updates, 'Auto: juster vekt etter ny side');
+      });
   }
 
   function yamlStr(s) {
