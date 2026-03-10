@@ -127,7 +127,7 @@
     {{ end }}
     {{ if and .File (ne $addSiblingURL "") }}
     <li>
-      <a href="#" onclick="openNewSiblingDialog('{{ $siblingRepo }}', '{{ $siblingParentPath }}', '{{ $lang }}'); return false;">
+      <a href="#" onclick="openNewSiblingDialog('{{ $siblingRepo }}', '{{ $siblingParentPath }}', '{{ $lang }}', {{ $.Weight }}); return false;">
         <i class="fa fa-plus"></i>
         <span>{{ cond (eq $lang "en") "Page – same level" "Side – samme nivå" }}</span>
       </a>
@@ -177,6 +177,7 @@
           <label style="display:block; font-weight:600; margin-bottom:.35rem;">Status</label>
           <select id="np-status"
             style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:1rem; background:#fff;">
+            <option value="">–</option>
             <option value="Ny" selected>Ny</option>
             <option value="Tidlig utkast">Tidlig utkast</option>
             <option value="Pågår">Pågår</option>

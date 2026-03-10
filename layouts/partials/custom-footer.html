@@ -99,7 +99,7 @@
       .replace(/-+/g, '-') || 'ny-side';
   }
 
-  window.openNewSiblingDialog = function(repo, parentPath, lang) {
+  window.openNewSiblingDialog = function(repo, parentPath, lang, currentWeight) {
     npRepo = repo;
     npParentPath = parentPath;
     npLang = lang || 'nb';
@@ -114,6 +114,9 @@
 
     document.getElementById('np-form').reset();
     document.getElementById('np-status').value = 'Ny';
+    if (currentWeight) {
+      document.getElementById('np-weight').value = currentWeight + 1;
+    }
     hideMsg();
     var submitBtn = document.getElementById('np-submit');
     submitBtn.disabled = false;
@@ -175,8 +178,10 @@
     var nbLines = ['---', 'title: ' + yamlStr(titleNb)];
     if (linkTitleNb) nbLines.push('linkTitle: ' + yamlStr(linkTitleNb));
     if (weight) nbLines.push('weight: ' + parseInt(weight, 10));
-    nbLines.push('status: ' + statusNb);
-    nbLines.push('# Gyldige verdier: Ny | Tidlig utkast | Pågår | Til QA | Godkjent | Avbrutt');
+    if (statusNb) {
+      nbLines.push('status: ' + statusNb);
+      nbLines.push('# Gyldige verdier: Ny | Tidlig utkast | Pågår | Til QA | Godkjent | Avbrutt');
+    }
     nbLines.push('---');
     if (body) { nbLines.push(''); nbLines.push(body); }
     var nbContent = nbLines.join('\n') + '\n';
@@ -185,8 +190,10 @@
     var enLines = ['---', 'title: ' + yamlStr(enTitle)];
     if (linkTitleNb) enLines.push('linkTitle: ' + yamlStr(linkTitleNb));
     if (weight) enLines.push('weight: ' + parseInt(weight, 10));
-    enLines.push('status: ' + statusEn);
-    enLines.push('# Valid values: New | Early draft | In progress | For QA | Approved | Cancelled');
+    if (statusNb) {
+      enLines.push('status: ' + statusEn);
+      enLines.push('# Valid values: New | Early draft | In progress | For QA | Approved | Cancelled');
+    }
     enLines.push('---');
     enLines.push('');
     enLines.push('*English translation TBD.*');
@@ -199,6 +206,12 @@
         return createFile(token, npRepo, enPath, enContent, commitMsg + ' (en placeholder)');
       })
       .then(function() {
+        if (weight) {
+          submitBtn.textContent = 'Justerer rekkefølge…';
+          return shiftSiblings(token, npRepo, npParentPath, parseInt(weight, 10), slug);
+        }
+      })
+      .then(function() {
         showMsg('success', '✓ Siden ble opprettet! Nettstedet bygges om automatisk (tar ~1 minutt).');
         submitBtn.textContent = 'Opprettet ✓';
       })
@@ -208,6 +221,50 @@
         submitBtn.textContent = 'Opprett side';
       });
   });
+
+  function shiftSiblings(token, repo, parentPath, minWeight, excludeSlug) {
+    return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/contents/' + parentPath, {
+      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(entries) {
+      if (!Array.isArray(entries)) return;
+      var dirs = entries.filter(function(e) { return e.type === 'dir' && e.name !== excludeSlug; });
+      return Promise.all(dirs.map(function(dir) {
+        var base = parentPath + '/' + dir.name;
+        return shiftFileWeight(token, repo, base + '/_index.nb.md', minWeight)
+          .then(function() { return shiftFileWeight(token, repo, base + '/_index.en.md', minWeight); });
+      }));
+    });
+  }
+
+  function shiftFileWeight(token, repo, filePath, minWeight) {
+    return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/contents/' + filePath, {
+      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
+    })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (!data || !data.content) return;
+      var raw = data.content.replace(/\n/g, '');
+      var content = decodeURIComponent(escape(atob(raw)));
+      var match = content.match(/^weight:\s*(\d+)/m);
+      if (!match) return;
+      var w = parseInt(match[1], 10);
+      if (w < minWeight) return;
+      var updated = content.replace(/^(weight:\s*)\d+/m, '$1' + (w + 1));
+      var encoded = btoa(unescape(encodeURIComponent(updated)));
+      return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/contents/' + filePath, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'token ' + token,
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.github+json'
+        },
+        body: JSON.stringify({ message: 'Auto: juster vekt etter ny side', content: encoded, sha: data.sha, branch: 'main' })
+      }).then(function(r) { if (!r.ok) throw new Error('Kunne ikke oppdatere ' + filePath); });
+    })
+    .catch(function() {}); // ignorer feil for enkeltfiler
+  }
 
   function yamlStr(s) {
     if (/[:#\[\]{}&*!|>'"%@`,]/.test(s) || s !== s.trim()) {
