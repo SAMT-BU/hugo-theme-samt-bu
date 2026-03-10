@@ -151,58 +151,63 @@
 </div>
 
 {{/* Modal: Ny side – samme nivå */}}
-<div id="np-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:99999; align-items:center; justify-content:center;">
-  <div style="background:#fff; border-radius:6px; padding:1.75rem; width:min(560px,92vw); max-height:90vh; overflow-y:auto; color:#222; box-shadow:0 8px 32px rgba(0,0,0,.25); font-size:16px;">
-    <h3 id="np-dialog-title" style="margin:0 0 1.25rem; font-size:1.1rem; color:#1a4a8a;">Ny side – samme nivå</h3>
-    <form id="np-form" onsubmit="return false;">
-      <div style="margin-bottom:1rem;">
-        <label style="display:block; font-weight:600; margin-bottom:.35rem;">Tittel (norsk) <span style="color:#c00;">*</span></label>
-        <input id="np-title-nb" type="text" autocomplete="off"
-          style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:16px;">
-      </div>
-      <div style="margin-bottom:1rem;">
-        <label style="display:block; font-weight:600; margin-bottom:.35rem;">Korttittel – menyen (norsk)</label>
-        <input id="np-linktitle-nb" type="text" autocomplete="off"
-          style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:16px;">
-        <small style="color:#666; font-size:.85rem;">La stå tom for å bruke tittelen.</small>
-      </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:.85rem; margin-bottom:1rem;">
-        <div>
-          <label style="display:block; font-weight:600; margin-bottom:.35rem;">Vekt (rekkefølge)</label>
-          <input id="np-weight" type="number" min="1" autocomplete="off"
+<div id="np-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99999;">
+  <div id="np-dialog" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:6px; width:min(560px,92vw); min-width:320px; min-height:220px; color:#222; box-shadow:0 8px 32px rgba(0,0,0,.28); font-size:16px; resize:both; overflow:auto;">
+    <div id="np-drag-handle" style="display:flex; align-items:center; justify-content:space-between; padding:.7rem 1.1rem; cursor:grab; user-select:none; background:#eef2f8; border-radius:6px 6px 0 0; border-bottom:1px solid #d0d8e8;">
+      <h3 id="np-dialog-title" style="margin:0; font-size:1.05rem; color:#1a4a8a; pointer-events:none;">Ny side – samme nivå</h3>
+      <button id="np-close-x" type="button" title="Lukk" style="background:none; border:none; cursor:pointer; font-size:1.25rem; color:#666; line-height:1; padding:0 0 0 .75rem;">✕</button>
+    </div>
+    <div style="padding:1.25rem 1.5rem 1.5rem;">
+      <form id="np-form" onsubmit="return false;">
+        <div style="margin-bottom:1rem;">
+          <label style="display:block; font-weight:600; margin-bottom:.35rem;">Tittel (norsk) <span style="color:#c00;">*</span></label>
+          <input id="np-title-nb" type="text" autocomplete="off"
             style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:16px;">
-          <small style="color:#666; font-size:.85rem;">Lavere tall vises først.</small>
         </div>
-        <div>
-          <label style="display:block; font-weight:600; margin-bottom:.35rem;">Status</label>
-          <select id="np-status"
-            style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:16px; background:#fff;">
-            <option value="">–</option>
-            <option value="Ny" selected>Ny</option>
-            <option value="Tidlig utkast">Tidlig utkast</option>
-            <option value="Pågår">Pågår</option>
-            <option value="Til QA">Til QA</option>
-            <option value="Godkjent">Godkjent</option>
-            <option value="Avbrutt">Avbrutt</option>
-          </select>
+        <div style="margin-bottom:1rem;">
+          <label style="display:block; font-weight:600; margin-bottom:.35rem;">Korttittel – menyen (norsk)</label>
+          <input id="np-linktitle-nb" type="text" autocomplete="off"
+            style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:16px;">
+          <small style="color:#666; font-size:.85rem;">La stå tom for å bruke tittelen.</small>
         </div>
-      </div>
-      <div style="margin-bottom:1.1rem;">
-        <label style="display:block; font-weight:600; margin-bottom:.35rem;">Innhold (markdown)</label>
-        <textarea id="np-body" rows="6"
-          style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:15px; font-family:monospace; resize:vertical;"></textarea>
-      </div>
-      <div id="np-msg" style="display:none; margin-bottom:.9rem; padding:.65rem .8rem; border-radius:4px; font-size:.95rem;"></div>
-      <div style="display:flex; gap:.6rem; justify-content:flex-end;">
-        <button type="button" id="np-cancel"
-          style="padding:.5rem 1.2rem; border:1px solid #bbb; border-radius:4px; background:#fff; cursor:pointer; font-size:1rem;">
-          Avbryt
-        </button>
-        <button type="submit" id="np-submit"
-          style="padding:.5rem 1.3rem; border:none; border-radius:4px; background:#1a4a8a; color:#fff; cursor:pointer; font-size:1rem; font-weight:600;">
-          Opprett side
-        </button>
-      </div>
-    </form>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.85rem; margin-bottom:1rem;">
+          <div>
+            <label style="display:block; font-weight:600; margin-bottom:.35rem;">Vekt (rekkefølge)</label>
+            <input id="np-weight" type="number" min="1" autocomplete="off"
+              style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:16px;">
+            <small style="color:#666; font-size:.85rem;">Lavere tall vises først.</small>
+          </div>
+          <div>
+            <label style="display:block; font-weight:600; margin-bottom:.35rem;">Status</label>
+            <select id="np-status"
+              style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:16px; background:#fff;">
+              <option value="">–</option>
+              <option value="Ny" selected>Ny</option>
+              <option value="Tidlig utkast">Tidlig utkast</option>
+              <option value="Pågår">Pågår</option>
+              <option value="Til QA">Til QA</option>
+              <option value="Godkjent">Godkjent</option>
+              <option value="Avbrutt">Avbrutt</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:1.1rem;">
+          <label style="display:block; font-weight:600; margin-bottom:.35rem;">Innhold (markdown)</label>
+          <textarea id="np-body" rows="6"
+            style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:15px; font-family:monospace; resize:vertical;"></textarea>
+        </div>
+        <div id="np-msg" style="display:none; margin-bottom:.9rem; padding:.65rem .8rem; border-radius:4px; font-size:.95rem;"></div>
+        <div style="display:flex; gap:.6rem; justify-content:flex-end;">
+          <button type="button" id="np-cancel"
+            style="padding:.5rem 1.2rem; border:1px solid #bbb; border-radius:4px; background:#fff; cursor:pointer; font-size:1rem;">
+            Avbryt
+          </button>
+          <button type="submit" id="np-submit"
+            style="padding:.5rem 1.3rem; border:none; border-radius:4px; background:#1a4a8a; color:#fff; cursor:pointer; font-size:1rem; font-weight:600;">
+            Opprett side
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>

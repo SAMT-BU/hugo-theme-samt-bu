@@ -122,22 +122,53 @@
     submitBtn.disabled = false;
     submitBtn.textContent = npLang === 'en' ? 'Create page' : 'Opprett side';
 
-    overlay.style.display = 'flex';
+    // Tilbakestill posisjon til midten ved ny åpning
+    var npDialog = document.getElementById('np-dialog');
+    npDialog.style.transform = 'translate(-50%,-50%)';
+    npDialog.style.left = '50%';
+    npDialog.style.top = '50%';
+
+    overlay.style.display = 'block';
     setTimeout(function() { document.getElementById('np-title-nb').focus(); }, 50);
   };
 
+  function closeDialog() { overlay.style.display = 'none'; }
+
   // Fix 3: stopp piltaster og andre taster fra å nå globale handlers
   overlay.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') { overlay.style.display = 'none'; }
+    if (e.key === 'Escape') { closeDialog(); }
     e.stopPropagation();
   });
 
-  document.getElementById('np-cancel').addEventListener('click', function() {
-    overlay.style.display = 'none';
+  document.getElementById('np-cancel').addEventListener('click', closeDialog);
+  document.getElementById('np-close-x').addEventListener('click', closeDialog);
+
+  // Drag-logikk: dra i tittelbaren
+  var npDragHandle = document.getElementById('np-drag-handle');
+  var npDialogEl = document.getElementById('np-dialog');
+  var dragging = false, dragOffX = 0, dragOffY = 0;
+
+  npDragHandle.addEventListener('mousedown', function(e) {
+    if (e.target.id === 'np-close-x') return;
+    var rect = npDialogEl.getBoundingClientRect();
+    npDialogEl.style.transform = '';
+    npDialogEl.style.left = rect.left + 'px';
+    npDialogEl.style.top = rect.top + 'px';
+    dragOffX = e.clientX - rect.left;
+    dragOffY = e.clientY - rect.top;
+    dragging = true;
+    npDragHandle.style.cursor = 'grabbing';
+    e.preventDefault();
   });
 
-  overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) overlay.style.display = 'none';
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    npDialogEl.style.left = (e.clientX - dragOffX) + 'px';
+    npDialogEl.style.top  = (e.clientY - dragOffY) + 'px';
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (dragging) { dragging = false; npDragHandle.style.cursor = 'grab'; }
   });
 
   // Fix 1: skjul feilmelding så snart brukeren begynner å rette
