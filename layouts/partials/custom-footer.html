@@ -415,10 +415,11 @@ function getDecapToken() {
   };
 
   function closeDialog() {
-    if (activePollTimer) { clearInterval(activePollTimer); activePollTimer = null; }
     overlay.style.display = 'none';
     document.getElementById('del-confirm-section').style.display = 'block';
     document.getElementById('del-build-section').style.display = 'none';
+    // activePollTimer stoppes IKKE her – polling fortsetter i bakgrunnen
+    // slik at navigering skjer automatisk når bygget er ferdig
   }
 
   overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDialog(); e.stopPropagation(); });
