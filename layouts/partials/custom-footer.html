@@ -91,6 +91,14 @@
     return null;
   }
 
+  function generateSlug(text) {
+    return text.toLowerCase()
+      .replace(/æ/g, 'ae').replace(/ø/g, 'oe').replace(/å/g, 'aa')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-+/g, '-') || 'ny-side';
+  }
+
   window.openNewSiblingDialog = function(repo, parentPath, lang) {
     npRepo = repo;
     npParentPath = parentPath;
@@ -112,7 +120,14 @@
     submitBtn.textContent = npLang === 'en' ? 'Create page' : 'Opprett side';
 
     overlay.style.display = 'flex';
+    setTimeout(function() { document.getElementById('np-title-nb').focus(); }, 50);
   };
+
+  // Fix 3: stopp piltaster og andre taster fra å nå globale handlers
+  overlay.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { overlay.style.display = 'none'; }
+    e.stopPropagation();
+  });
 
   document.getElementById('np-cancel').addEventListener('click', function() {
     overlay.style.display = 'none';
@@ -122,8 +137,10 @@
     if (e.target === overlay) overlay.style.display = 'none';
   });
 
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && overlay.style.display === 'flex') overlay.style.display = 'none';
+  // Fix 1: skjul feilmelding så snart brukeren begynner å rette
+  ['np-title-nb', 'np-linktitle-nb', 'np-weight', 'np-status', 'np-body'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('input', hideMsg);
   });
 
   document.getElementById('np-form').addEventListener('submit', function(e) {
@@ -135,19 +152,16 @@
       return;
     }
 
-    var slug        = document.getElementById('np-slug').value.trim();
     var titleNb     = document.getElementById('np-title-nb').value.trim();
     var linkTitleNb = document.getElementById('np-linktitle-nb').value.trim();
     var weight      = document.getElementById('np-weight').value.trim();
     var statusNb    = document.getElementById('np-status').value;
     var body        = document.getElementById('np-body').value;
 
-    if (!slug) { showMsg('error', 'Mappenavn er påkrevd.'); return; }
     if (!titleNb) { showMsg('error', 'Tittel er påkrevd.'); return; }
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) {
-      showMsg('error', 'Mappenavn kan bare inneholde små bokstaver (a-z), tall og bindestrek, og må starte med bokstav eller tall.');
-      return;
-    }
+
+    // Fix 2: auto-generer slug fra korttittel (evt. tittel)
+    var slug = generateSlug(linkTitleNb || titleNb);
 
     var submitBtn = document.getElementById('np-submit');
     submitBtn.disabled = true;

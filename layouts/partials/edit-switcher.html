@@ -155,34 +155,28 @@
   <div style="background:#fff; border-radius:6px; padding:1.75rem; width:min(560px,92vw); max-height:90vh; overflow-y:auto; color:#222; box-shadow:0 8px 32px rgba(0,0,0,.25);">
     <h3 id="np-dialog-title" style="margin:0 0 1.25rem; font-size:1.1rem; color:#1a4a8a;">Ny side – samme nivå</h3>
     <form id="np-form" onsubmit="return false;">
-      <div style="margin-bottom:.85rem;">
-        <label style="display:block; font-weight:600; margin-bottom:.3rem; font-size:.9rem;">Mappenavn (URL-slug)</label>
-        <input id="np-slug" type="text" placeholder="nytt-kapittel" autocomplete="off"
-          style="width:100%; box-sizing:border-box; padding:.45rem .65rem; border:1px solid #bbb; border-radius:4px; font-size:.95rem;">
-        <small style="color:#666; font-size:.8rem;">Bare små bokstaver, tall og bindestrek. Blir URL-segmentet til siden.</small>
-      </div>
-      <div style="margin-bottom:.85rem;">
-        <label style="display:block; font-weight:600; margin-bottom:.3rem; font-size:.9rem;">Tittel (norsk) <span style="color:#c00;">*</span></label>
+      <div style="margin-bottom:1rem;">
+        <label style="display:block; font-weight:600; margin-bottom:.35rem;">Tittel (norsk) <span style="color:#c00;">*</span></label>
         <input id="np-title-nb" type="text" autocomplete="off"
-          style="width:100%; box-sizing:border-box; padding:.45rem .65rem; border:1px solid #bbb; border-radius:4px; font-size:.95rem;">
+          style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:1rem;">
       </div>
-      <div style="margin-bottom:.85rem;">
-        <label style="display:block; font-weight:600; margin-bottom:.3rem; font-size:.9rem;">Korttittel – menyen (norsk)</label>
+      <div style="margin-bottom:1rem;">
+        <label style="display:block; font-weight:600; margin-bottom:.35rem;">Korttittel – menyen (norsk)</label>
         <input id="np-linktitle-nb" type="text" autocomplete="off"
-          style="width:100%; box-sizing:border-box; padding:.45rem .65rem; border:1px solid #bbb; border-radius:4px; font-size:.95rem;">
-        <small style="color:#666; font-size:.8rem;">La stå tom for å bruke tittelen.</small>
+          style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:1rem;">
+        <small style="color:#666; font-size:.85rem;">La stå tom for å bruke tittelen.</small>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-bottom:.85rem;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:.85rem; margin-bottom:1rem;">
         <div>
-          <label style="display:block; font-weight:600; margin-bottom:.3rem; font-size:.9rem;">Vekt (rekkefølge)</label>
+          <label style="display:block; font-weight:600; margin-bottom:.35rem;">Vekt (rekkefølge)</label>
           <input id="np-weight" type="number" min="1" autocomplete="off"
-            style="width:100%; box-sizing:border-box; padding:.45rem .65rem; border:1px solid #bbb; border-radius:4px; font-size:.95rem;">
-          <small style="color:#666; font-size:.8rem;">Lavere tall vises først.</small>
+            style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:1rem;">
+          <small style="color:#666; font-size:.85rem;">Lavere tall vises først.</small>
         </div>
         <div>
-          <label style="display:block; font-weight:600; margin-bottom:.3rem; font-size:.9rem;">Status</label>
+          <label style="display:block; font-weight:600; margin-bottom:.35rem;">Status</label>
           <select id="np-status"
-            style="width:100%; box-sizing:border-box; padding:.45rem .65rem; border:1px solid #bbb; border-radius:4px; font-size:.95rem; background:#fff;">
+            style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:1rem; background:#fff;">
             <option value="Ny" selected>Ny</option>
             <option value="Tidlig utkast">Tidlig utkast</option>
             <option value="Pågår">Pågår</option>
@@ -192,19 +186,19 @@
           </select>
         </div>
       </div>
-      <div style="margin-bottom:1rem;">
-        <label style="display:block; font-weight:600; margin-bottom:.3rem; font-size:.9rem;">Innhold (markdown)</label>
+      <div style="margin-bottom:1.1rem;">
+        <label style="display:block; font-weight:600; margin-bottom:.35rem;">Innhold (markdown)</label>
         <textarea id="np-body" rows="6"
-          style="width:100%; box-sizing:border-box; padding:.45rem .65rem; border:1px solid #bbb; border-radius:4px; font-size:.9rem; font-family:monospace; resize:vertical;"></textarea>
+          style="width:100%; box-sizing:border-box; padding:.5rem .7rem; border:1px solid #bbb; border-radius:4px; font-size:.95rem; font-family:monospace; resize:vertical;"></textarea>
       </div>
-      <div id="np-msg" style="display:none; margin-bottom:.85rem; padding:.6rem .75rem; border-radius:4px; font-size:.9rem;"></div>
+      <div id="np-msg" style="display:none; margin-bottom:.9rem; padding:.65rem .8rem; border-radius:4px; font-size:.95rem;"></div>
       <div style="display:flex; gap:.6rem; justify-content:flex-end;">
         <button type="button" id="np-cancel"
-          style="padding:.45rem 1.1rem; border:1px solid #bbb; border-radius:4px; background:#fff; cursor:pointer; font-size:.95rem;">
+          style="padding:.5rem 1.2rem; border:1px solid #bbb; border-radius:4px; background:#fff; cursor:pointer; font-size:1rem;">
           Avbryt
         </button>
         <button type="submit" id="np-submit"
-          style="padding:.45rem 1.2rem; border:none; border-radius:4px; background:#1a4a8a; color:#fff; cursor:pointer; font-size:.95rem; font-weight:600;">
+          style="padding:.5rem 1.3rem; border:none; border-radius:4px; background:#1a4a8a; color:#fff; cursor:pointer; font-size:1rem; font-weight:600;">
           Opprett side
         </button>
       </div>
