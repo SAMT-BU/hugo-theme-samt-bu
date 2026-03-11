@@ -909,6 +909,34 @@ function getDecapToken() {
     return { frontmatter: '', body: content.trim() };
   }
 
+  function qeYamlStr(s) {
+    if (/[:#\[\]{}&*!|>'"%@`,]/.test(s) || s !== s.trim()) {
+      return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    }
+    return s;
+  }
+
+  function parseFmField(fm, key) {
+    var m = fm.match(new RegExp('^' + key + ':\\s*(.*)$', 'm'));
+    if (!m) return '';
+    var v = m[1].trim();
+    if (v.length >= 2 && ((v[0] === '"' && v[v.length-1] === '"') || (v[0] === "'" && v[v.length-1] === "'"))) {
+      v = v.slice(1, -1).replace(/\\"/g, '"');
+    }
+    return v;
+  }
+
+  function setFmField(fm, key, line) {
+    if (new RegExp('^' + key + ':', 'm').test(fm)) {
+      return fm.replace(new RegExp('^' + key + ':.*$', 'm'), line);
+    }
+    return fm.replace(/\n---\n$/, '\n' + line + '\n---\n');
+  }
+
+  function removeFmField(fm, key) {
+    return fm.replace(new RegExp('^' + key + ':.*\\n', 'm'), '');
+  }
+
   function setStatus(text) {
     var el = document.getElementById('qe-status-text');
     if (el) el.textContent = text;
@@ -979,6 +1007,24 @@ function getDecapToken() {
           if (parsed.body && window.marked) {
             qeEditor.clipboard.dangerouslyPasteHTML(window.marked.parse(parsed.body, { gfm: true }));
           }
+
+          // Fyll inn metadata-felter
+          document.getElementById('qe-field-title').value = parseFmField(qeFrontmatter, 'title');
+          document.getElementById('qe-field-linktitle').value = parseFmField(qeFrontmatter, 'linkTitle');
+          document.getElementById('qe-field-weight').value = parseFmField(qeFrontmatter, 'weight');
+          var currentStatus = parseFmField(qeFrontmatter, 'status');
+          var statusOpts = qeLang === 'en'
+            ? ['', 'New', 'Early draft', 'In progress', 'For QA', 'Approved', 'Cancelled']
+            : ['', 'Ny', 'Tidlig utkast', 'Pågår', 'Til QA', 'Godkjent', 'Avbrutt'];
+          var sel = document.getElementById('qe-field-status');
+          sel.innerHTML = '';
+          statusOpts.forEach(function(opt) {
+            var o = document.createElement('option');
+            o.value = opt; o.textContent = opt || (qeLang === 'en' ? '(none)' : '(ingen)');
+            if (opt === currentStatus) o.selected = true;
+            sel.appendChild(o);
+          });
+
           setStatus('');
           saveBtn.disabled = false;
           qeEditor.focus();
@@ -1008,7 +1054,22 @@ function getDecapToken() {
     Object.keys(qeImageMap).forEach(function(dataUrl) { html = html.split(dataUrl).join(qeImageMap[dataUrl]); });
     var td = new TurndownService({ headingStyle: 'atx', bulletListMarker: '-' });
     var body = td.turndown(html).trim();
-    var newContent = qeFrontmatter + body + '\n';
+
+    // Bygg frontmatter fra skjemafeltene
+    var fm = qeFrontmatter;
+    var newTitle = document.getElementById('qe-field-title').value.trim();
+    var newLinkTitle = document.getElementById('qe-field-linktitle').value.trim();
+    var newWeight = document.getElementById('qe-field-weight').value.trim();
+    var newStatus = document.getElementById('qe-field-status').value;
+    if (newTitle) fm = setFmField(fm, 'title', 'title: ' + qeYamlStr(newTitle));
+    if (newLinkTitle) fm = setFmField(fm, 'linkTitle', 'linkTitle: ' + qeYamlStr(newLinkTitle));
+    else fm = removeFmField(fm, 'linkTitle');
+    if (newWeight) fm = setFmField(fm, 'weight', 'weight: ' + parseInt(newWeight, 10));
+    else fm = removeFmField(fm, 'weight');
+    if (newStatus) fm = setFmField(fm, 'status', 'status: ' + newStatus);
+    else fm = removeFmField(fm, 'status');
+
+    var newContent = fm + body + '\n';
     var imgDir = qeFilePath.replace('/_index.' + qeLang + '.md', '');
     var startTime = Date.now();
     var commitMsg = (qeLang === 'en' ? 'Updated: ' : 'Oppdatert: ') + qePageTitle;
