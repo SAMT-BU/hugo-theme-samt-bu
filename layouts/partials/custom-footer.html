@@ -78,6 +78,40 @@ function getDecapToken() {
   var overlay = document.getElementById('np-overlay');
   if (!overlay) return;
 
+  // Toast UI Editor – lazy-lastet fra CDN ved første åpning
+  var npEditor = null;
+  var npEditorLoaded = false;
+
+  function initToastEditor(callback) {
+    if (npEditorLoaded) { if (npEditor) npEditor.setMarkdown(''); callback(); return; }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css';
+    document.head.appendChild(link);
+    var script = document.createElement('script');
+    script.src = 'https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js';
+    script.onload = function() {
+      npEditorLoaded = true;
+      npEditor = new toastui.Editor({
+        el: document.getElementById('np-body-editor'),
+        height: '220px',
+        initialEditType: 'wysiwyg',
+        previewStyle: 'tab',
+        toolbarItems: [
+          ['heading', 'bold', 'italic'],
+          ['hr', 'quote'],
+          ['ul', 'ol', 'task'],
+          ['table', 'image', 'link'],
+          ['code', 'codeBlock']
+        ],
+        usageStatistics: false
+      });
+      callback();
+    };
+    script.onerror = function() { npEditorLoaded = true; callback(); };
+    document.head.appendChild(script);
+  }
+
   var npRepo = '';
   var npParentPath = '';
   var npLang = 'nb';
@@ -142,7 +176,7 @@ function getDecapToken() {
 
     npDialogVisible = true;
     overlay.style.display = 'block';
-    setTimeout(function() { document.getElementById('np-title-nb').focus(); }, 50);
+    initToastEditor(function() { document.getElementById('np-title-nb').focus(); });
   };
 
   window.openNewChildDialog = function(repo, dirPath, lang, currentPermalink) {
@@ -179,7 +213,7 @@ function getDecapToken() {
 
     npDialogVisible = true;
     overlay.style.display = 'block';
-    setTimeout(function() { document.getElementById('np-title-nb').focus(); }, 50);
+    initToastEditor(function() { document.getElementById('np-title-nb').focus(); });
   };
 
   function closeDialog() { overlay.style.display = 'none'; npDialogVisible = false; }
@@ -223,7 +257,7 @@ function getDecapToken() {
   });
 
   // Fix 1: skjul feilmelding så snart brukeren begynner å rette
-  ['np-title-nb', 'np-linktitle-nb', 'np-weight', 'np-status', 'np-body'].forEach(function(id) {
+  ['np-title-nb', 'np-linktitle-nb', 'np-weight', 'np-status'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener('input', hideMsg);
   });
@@ -241,7 +275,7 @@ function getDecapToken() {
     var linkTitleNb = document.getElementById('np-linktitle-nb').value.trim();
     var weight      = document.getElementById('np-weight').value.trim();
     var statusNb    = document.getElementById('np-status').value;
-    var body        = document.getElementById('np-body').value;
+    var body        = npEditor ? npEditor.getMarkdown().trim() : '';
 
     if (!titleNb) { showMsg('error', 'Tittel er påkrevd.'); return; }
 
