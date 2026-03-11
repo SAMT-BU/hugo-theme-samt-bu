@@ -81,6 +81,10 @@ function getDecapToken() {
   var npRepo = '';
   var npParentPath = '';
   var npLang = 'nb';
+  var npCurrentPermalink = '';
+  var npNewPageUrl = '';
+  var npTitle = '';
+  var npActivePollTimer = null;
 
   var STATUS_EN_MAP = {
     'Ny': 'New',
@@ -99,10 +103,11 @@ function getDecapToken() {
       .replace(/-+/g, '-') || 'ny-side';
   }
 
-  window.openNewSiblingDialog = function(repo, parentPath, lang, currentWeight) {
+  window.openNewSiblingDialog = function(repo, parentPath, lang, currentWeight, currentPermalink) {
     npRepo = repo;
     npParentPath = parentPath;
     npLang = lang || 'nb';
+    npCurrentPermalink = currentPermalink || '';
 
     var token = getDecapToken();
     if (!token) {
@@ -112,6 +117,9 @@ function getDecapToken() {
       return;
     }
 
+    document.getElementById('np-form').style.display = '';
+    document.getElementById('np-build-section').style.display = 'none';
+    document.getElementById('np-panel-done').style.display = 'none';
     document.getElementById('np-form').reset();
     document.getElementById('np-status').value = 'Ny';
     if (currentWeight) {
@@ -142,6 +150,7 @@ function getDecapToken() {
 
   document.getElementById('np-cancel').addEventListener('click', closeDialog);
   document.getElementById('np-close-x').addEventListener('click', closeDialog);
+  document.getElementById('np-panel-close').addEventListener('click', closeDialog);
 
   // Drag-logikk: dra i tittelbaren
   var npDragHandle = document.getElementById('np-drag-handle');
@@ -201,6 +210,7 @@ function getDecapToken() {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Oppretter…';
     hideMsg();
+    var startTime = Date.now();
 
     var nbPath = npParentPath + '/' + slug + '/_index.nb.md';
     var enPath = npParentPath + '/' + slug + '/_index.en.md';
@@ -245,8 +255,12 @@ function getDecapToken() {
       return createFilesInOneCommit(token, npRepo, newFiles.concat(siblingUpdates), commitMsg);
     })
       .then(function() {
-        showMsg('success', '✓ Siden ble opprettet! Nettstedet bygges om automatisk (tar ~1 minutt).');
-        submitBtn.textContent = 'Opprettet ✓';
+        npTitle = titleNb;
+        var parentUrl = npCurrentPermalink.replace(/\/[^\/]+\/?$/, '/');
+        npNewPageUrl = parentUrl + slug + '/';
+        showNpBuildPanel();
+        showNpJobIndicator();
+        npPollBuild(startTime);
       })
       .catch(function(err) {
         showMsg('error', 'Feil: ' + err.message);
@@ -362,6 +376,102 @@ function getDecapToken() {
       });
       return r.json();
     });
+  }
+
+  function showNpBuildPanel() {
+    document.getElementById('np-form').style.display = 'none';
+    document.getElementById('np-build-section').style.display = 'block';
+    document.getElementById('np-dialog-title').textContent =
+      npLang === 'en' ? 'Creating "' + npTitle + '"…' : 'Oppretter «' + npTitle + '»…';
+    document.getElementById('np-build-status-text').textContent =
+      npLang === 'en' ? 'Waiting for build to start…' : 'Bygging av nettstedet starter om litt…';
+    document.getElementById('np-panel-done').style.display = 'none';
+  }
+
+  function showNpJobIndicator() {
+    var el = document.getElementById('np-job-indicator');
+    if (el) el.style.display = 'flex';
+  }
+
+  function hideNpJobIndicator() {
+    var el = document.getElementById('np-job-indicator');
+    if (el) el.style.display = 'none';
+  }
+
+  function navToNewPage() {
+    var url = npNewPageUrl;
+    url += (url.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+    window.location.href = url;
+  }
+
+  function npPollBuild(startTime) {
+    var token = getDecapToken();
+    var h = { 'Accept': 'application/vnd.github+json' };
+    if (token) h['Authorization'] = 'token ' + token;
+    var elapsed = 0;
+
+    npActivePollTimer = setInterval(function() {
+      elapsed += 5;
+      var statusEl = document.getElementById('np-build-status-text');
+      if (!statusEl) { clearInterval(npActivePollTimer); return; }
+
+      fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.workflow_runs || !data.workflow_runs.length) {
+            statusEl.textContent = (npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
+            return;
+          }
+          var run = null;
+          for (var i = 0; i < data.workflow_runs.length; i++) {
+            if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) {
+              run = data.workflow_runs[i]; break;
+            }
+          }
+          if (!run) {
+            statusEl.textContent = (npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
+            return;
+          }
+          if (run.status === 'queued' || run.status === 'in_progress') {
+            statusEl.textContent = (npLang === 'en'
+              ? 'Building site – expected ~1 min – ' + elapsed + 's so far'
+              : 'Bygging av nettstedet pågår – forventet ~1 min – ' + elapsed + ' sek så langt');
+          } else if (run.status === 'completed') {
+            clearInterval(npActivePollTimer);
+            npActivePollTimer = null;
+            var doneBtn = document.getElementById('np-panel-done');
+            if (run.conclusion === 'success') {
+              hideNpJobIndicator();
+              if (doneBtn) doneBtn.style.display = 'inline-block';
+              var secs = 3;
+              statusEl.textContent = (npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…');
+              var cdTimer = setInterval(function() {
+                secs--;
+                if (secs <= 0) {
+                  clearInterval(cdTimer);
+                  navToNewPage();
+                  return;
+                }
+                var el = document.getElementById('np-build-status-text');
+                if (el) el.textContent = (npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…');
+              }, 1000);
+            } else {
+              hideNpJobIndicator();
+              statusEl.textContent = (npLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + run.conclusion;
+              if (doneBtn) doneBtn.style.display = 'inline-block';
+            }
+          }
+        })
+        .catch(function() {
+          statusEl.textContent = (npLang === 'en' ? 'Checking… (' : 'Sjekker… (') + elapsed + 's)';
+        });
+    }, 5000);
+
+    document.getElementById('np-panel-done').onclick = function() {
+      clearInterval(npActivePollTimer); npActivePollTimer = null;
+      hideNpJobIndicator();
+      navToNewPage();
+    };
   }
 
   function showMsg(type, text) {

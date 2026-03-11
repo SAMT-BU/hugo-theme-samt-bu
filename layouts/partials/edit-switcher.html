@@ -153,7 +153,7 @@
     {{ end }}
     {{ if and .File (ne $addSiblingURL "") }}
     <li>
-      <a href="#" onclick="openNewSiblingDialog('{{ $siblingRepo }}', '{{ $siblingParentPath }}', '{{ $lang }}', {{ $.Weight }}); return false;">
+      <a href="#" onclick="openNewSiblingDialog('{{ $siblingRepo }}', '{{ $siblingParentPath }}', '{{ $lang }}', {{ $.Weight }}, '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-plus"></i>
         <span>{{ cond (eq $lang "en") "Page – same level" "Side – samme nivå" }}</span>
       </a>
@@ -219,6 +219,10 @@
   <i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i>
   <span>{{ cond (eq $lang "en") "Update in progress" "Oppdateringsjobb pågår" }}</span>
 </div>
+<div id="np-job-indicator" style="display:none; position:fixed; bottom:0; left:0; z-index:9998; background:rgba(30,30,30,0.93); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; border-radius:0 4px 0 0; align-items:center; gap:7px;">
+  <i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i>
+  <span>{{ cond (eq $lang "en") "Update in progress" "Oppdateringsjobb pågår" }}</span>
+</div>
 
 {{/* Modal: Ny side – samme nivå */}}
 <div id="np-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99999;">
@@ -278,6 +282,14 @@
           </button>
         </div>
       </form>
+      {{/* Statusdel – vises etter vellykket commit */}}
+      <div id="np-build-section" style="display:none;">
+        <p id="np-build-status-text" style="margin:0 0 1.25rem; color:#444;"></p>
+        <div style="display:flex; gap:.6rem; justify-content:flex-end;">
+          <button type="button" id="np-panel-close" style="padding:.5rem 1.2rem; border:1px solid #bbb; border-radius:4px; background:#fff; cursor:pointer; font-size:16px; font-family:inherit;">{{ cond (eq $lang "en") "Close" "Lukk" }}</button>
+          <button type="button" id="np-panel-done" style="display:none; padding:.5rem 1.3rem; border:none; border-radius:4px; background:#1a4a8a; color:#fff; cursor:pointer; font-size:16px; font-family:inherit; font-weight:600;">OK</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
