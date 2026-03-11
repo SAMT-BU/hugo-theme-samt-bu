@@ -1059,6 +1059,7 @@ function getDecapToken() {
               handlers: {
                 insertTable: function() {
                   var m = qeEditor && qeEditor.getModule('better-table');
+                  console.log('[qe] QBT global:', window.quillBetterTable, '| modul:', m);
                   if (m) m.insertTable(3, 3);
                 }
               }
