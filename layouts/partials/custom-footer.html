@@ -78,6 +78,49 @@ function getDecapToken() {
   var overlay = document.getElementById('np-overlay');
   if (!overlay) return;
 
+  // Quill + Turndown – lazy-lastet fra CDN ved første åpning
+  var npEditor = null;
+  var npEditorLoaded = false;
+
+  function initQuill(callback) {
+    if (npEditorLoaded) { if (npEditor) npEditor.setContents([]); callback(); return; }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css';
+    document.head.appendChild(link);
+    var s1 = document.createElement('script');
+    s1.src = 'https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js';
+    s1.onload = function() {
+      var s2 = document.createElement('script');
+      s2.src = 'https://cdn.jsdelivr.net/npm/turndown/dist/turndown.js';
+      s2.onload = function() {
+        npEditorLoaded = true;
+        npEditor = new Quill('#np-body-quill', {
+          theme: 'snow',
+          modules: {
+            toolbar: [
+              ['bold', 'italic'],
+              [{ 'header': [2, 3, false] }],
+              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+              ['link', 'clean']
+            ]
+          }
+        });
+        callback();
+      };
+      s2.onerror = function() { npEditorLoaded = true; callback(); };
+      document.head.appendChild(s2);
+    };
+    s1.onerror = function() { npEditorLoaded = true; callback(); };
+    document.head.appendChild(s1);
+  }
+
+  function quillToMarkdown() {
+    if (!npEditor) return '';
+    var td = new TurndownService({ headingStyle: 'atx', bulletListMarker: '-' });
+    return td.turndown(npEditor.root.innerHTML).trim();
+  }
+
   var npRepo = '';
   var npParentPath = '';
   var npLang = 'nb';
@@ -142,7 +185,7 @@ function getDecapToken() {
 
     npDialogVisible = true;
     overlay.style.display = 'block';
-    setTimeout(function() { document.getElementById('np-title-nb').focus(); }, 50);
+    initQuill(function() { document.getElementById('np-title-nb').focus(); });
   };
 
   window.openNewChildDialog = function(repo, dirPath, lang, currentPermalink) {
@@ -179,7 +222,7 @@ function getDecapToken() {
 
     npDialogVisible = true;
     overlay.style.display = 'block';
-    setTimeout(function() { document.getElementById('np-title-nb').focus(); }, 50);
+    initQuill(function() { document.getElementById('np-title-nb').focus(); });
   };
 
   function closeDialog() { overlay.style.display = 'none'; npDialogVisible = false; }
@@ -223,7 +266,7 @@ function getDecapToken() {
   });
 
   // Fix 1: skjul feilmelding så snart brukeren begynner å rette
-  ['np-title-nb', 'np-linktitle-nb', 'np-weight', 'np-status', 'np-body'].forEach(function(id) {
+  ['np-title-nb', 'np-linktitle-nb', 'np-weight', 'np-status'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener('input', hideMsg);
   });
@@ -241,7 +284,7 @@ function getDecapToken() {
     var linkTitleNb = document.getElementById('np-linktitle-nb').value.trim();
     var weight      = document.getElementById('np-weight').value.trim();
     var statusNb    = document.getElementById('np-status').value;
-    var body        = document.getElementById('np-body').value;
+    var body        = quillToMarkdown();
 
     if (!titleNb) { showMsg('error', 'Tittel er påkrevd.'); return; }
 
