@@ -81,9 +81,15 @@ function getDecapToken() {
   // Quill + Turndown – lazy-lastet fra CDN ved første åpning
   var npEditor = null;
   var npEditorLoaded = false;
+  var npImages = {};    // { 'bilde-123.png': '<base64>' }
+  var npImageMap = {};  // { 'data:image/...base64...' : 'bilde-123.png' }
 
   function initQuill(callback) {
-    if (npEditorLoaded) { if (npEditor) npEditor.setContents([]); callback(); return; }
+    if (npEditorLoaded) {
+      if (npEditor) npEditor.setContents([]);
+      npImages = {}; npImageMap = {};
+      callback(); return;
+    }
     var link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css';
@@ -106,6 +112,32 @@ function getDecapToken() {
             ]
           }
         });
+        // Intercepter bilde-lim: lagre som fil, vis data-URL som preview
+        npEditor.root.addEventListener('paste', function(e) {
+          var items = e.clipboardData && e.clipboardData.items;
+          if (!items) return;
+          for (var i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image') !== -1) {
+              e.preventDefault();
+              e.stopPropagation();
+              (function(item) {
+                var ext = item.type === 'image/jpeg' ? 'jpg' : 'png';
+                var filename = 'bilde-' + Date.now() + '.' + ext;
+                var reader = new FileReader();
+                reader.onload = function(evt) {
+                  var dataUrl = evt.target.result;
+                  npImages[filename] = dataUrl.split(',')[1];
+                  npImageMap[dataUrl] = filename;
+                  var range = npEditor.getSelection(true);
+                  npEditor.insertEmbed(range ? range.index : 0, 'image', dataUrl);
+                  if (range) npEditor.setSelection(range.index + 1);
+                };
+                reader.readAsDataURL(item.getAsFile());
+              })(items[i]);
+              break;
+            }
+          }
+        }, true);
         callback();
       };
       s2.onerror = function() { npEditorLoaded = true; callback(); };
@@ -117,8 +149,31 @@ function getDecapToken() {
 
   function quillToMarkdown() {
     if (!npEditor) return '';
+    var html = npEditor.root.innerHTML;
+    // Bytt data-URLer med relative filnavn før Turndown konverterer
+    Object.keys(npImageMap).forEach(function(dataUrl) {
+      html = html.split(dataUrl).join(npImageMap[dataUrl]);
+    });
     var td = new TurndownService({ headingStyle: 'atx', bulletListMarker: '-' });
-    return td.turndown(npEditor.root.innerHTML).trim();
+    return td.turndown(html).trim();
+  }
+
+  // Laster opp binærfiler som GitHub-blobs, returnerer tree-items med SHA
+  function uploadImageBlobs(token, repo, dirPath, images) {
+    var names = Object.keys(images);
+    if (!names.length) return Promise.resolve([]);
+    var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
+    var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
+    return Promise.all(names.map(function(fname) {
+      return fetch(apiBase + '/git/blobs', {
+        method: 'POST', headers: h,
+        body: JSON.stringify({ content: images[fname], encoding: 'base64' })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(blob) {
+        return { path: dirPath + '/' + fname, mode: '100644', type: 'blob', sha: blob.sha };
+      });
+    }));
   }
 
   var npRepo = '';
@@ -332,12 +387,13 @@ function getDecapToken() {
       { path: enPath, content: enContent }
     ];
 
-    // Hent søskenfiler for vektjustering parallelt, så alt går i én commit
-    (weightInt
-      ? fetchSiblingWeightUpdates(token, npRepo, npParentPath, weightInt, slug)
-      : Promise.resolve([])
-    ).then(function(siblingUpdates) {
-      return createFilesInOneCommit(token, npRepo, newFiles.concat(siblingUpdates), commitMsg);
+    // Hent søskenfiler og last opp bilder parallelt – alt i én commit
+    var imgDir = npParentPath + '/' + slug;
+    Promise.all([
+      weightInt ? fetchSiblingWeightUpdates(token, npRepo, npParentPath, weightInt, slug) : Promise.resolve([]),
+      uploadImageBlobs(token, npRepo, imgDir, npImages)
+    ]).then(function(results) {
+      return createFilesInOneCommit(token, npRepo, newFiles.concat(results[0]), commitMsg, results[1]);
     })
       .then(function() {
         npTitle = titleNb;
@@ -405,7 +461,8 @@ function getDecapToken() {
   }
 
   // Oppretter flere filer i én enkelt commit via Git Data API (unngår dobbel Hugo-bygg og race condition)
-  function createFilesInOneCommit(token, repo, files, commitMsg) {
+  // blobItems: pre-uploadede binærfiler med SHA (valgfri, f.eks. bilder)
+  function createFilesInOneCommit(token, repo, files, commitMsg, blobItems) {
     var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
     var headers = {
       'Authorization': 'token ' + token,
@@ -423,7 +480,7 @@ function getDecapToken() {
       .then(function(commit) {
         var treeItems = files.map(function(f) {
           return { path: f.path, mode: '100644', type: 'blob', content: f.content };
-        });
+        }).concat(blobItems || []);
         return fetch(apiBase + '/git/trees', {
           method: 'POST', headers: headers,
           body: JSON.stringify({ base_tree: commit.tree.sha, tree: treeItems })
