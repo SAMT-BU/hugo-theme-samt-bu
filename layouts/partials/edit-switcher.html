@@ -119,7 +119,7 @@
     <li>
       <a href="#" onclick="openQuillEditDialog('{{ $githubRepo }}', '{{ $dirPath }}/_index.{{ $lang }}.md', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-pencil"></i>
-        <span>{{ cond (eq $lang "en") "Edit content" "Rediger innhold" }}</span>
+        <span>{{ cond (eq $lang "en") "Edit this chapter" "Rediger dette kapitlet" }}</span>
       </a>
     </li>
     {{ end }}
@@ -127,7 +127,7 @@
     <li>
       <a href="#" onclick="openNewSiblingDialog('{{ $siblingRepo }}', '{{ $siblingParentPath }}', '{{ $lang }}', {{ $.Weight }}, '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-plus"></i>
-        <span>{{ cond (eq $lang "en") "Page – same level" "Side – samme nivå" }}</span>
+        <span>{{ cond (eq $lang "en") "New chapter after this" "Nytt kapittel etter dette" }}</span>
       </a>
     </li>
     {{ end }}
@@ -135,7 +135,7 @@
     <li>
       <a href="#" onclick="openNewChildDialog('{{ $githubRepo }}', '{{ $dirPath }}', '{{ $lang }}', '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-plus"></i>
-        <span>{{ i18n "editSwitcherAddChild" | default (cond (eq $lang "en") "Sub-chapter" "Underkapittel") }}</span>
+        <span>{{ i18n "editSwitcherAddChild" | default (cond (eq $lang "en") "New sub-chapter" "Nytt underkapittel") }}</span>
       </a>
     </li>
     {{ end }}
