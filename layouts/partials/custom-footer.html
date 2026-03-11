@@ -85,6 +85,7 @@ function getDecapToken() {
   var npNewPageUrl = '';
   var npTitle = '';
   var npActivePollTimer = null;
+  var npDialogVisible = false;
 
   var STATUS_EN_MAP = {
     'Ny': 'New',
@@ -136,11 +137,12 @@ function getDecapToken() {
     npDialog.style.left = '50%';
     npDialog.style.top = '50%';
 
+    npDialogVisible = true;
     overlay.style.display = 'block';
     setTimeout(function() { document.getElementById('np-title-nb').focus(); }, 50);
   };
 
-  function closeDialog() { overlay.style.display = 'none'; }
+  function closeDialog() { overlay.style.display = 'none'; npDialogVisible = false; }
 
   // Fix 3: stopp piltaster og andre taster fra å nå globale handlers
   overlay.addEventListener('keydown', function(e) {
@@ -422,44 +424,53 @@ function getDecapToken() {
             statusEl.textContent = (npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
             return;
           }
-          var run = null;
-          for (var i = 0; i < data.workflow_runs.length; i++) {
-            if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) {
-              run = data.workflow_runs[i]; break;
-            }
-          }
-          if (!run) {
+          // Vent på ALLE bygg etter startTime (inkl. ensure-uuids-bygg som følger umiddelbart etter)
+          var runs = data.workflow_runs.filter(function(r) {
+            return new Date(r.created_at).getTime() >= startTime - 30000;
+          });
+          if (!runs.length) {
             statusEl.textContent = (npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
             return;
           }
-          if (run.status === 'queued' || run.status === 'in_progress') {
+          var anyPending = runs.some(function(r) {
+            return r.status === 'queued' || r.status === 'in_progress';
+          });
+          if (anyPending) {
             statusEl.textContent = (npLang === 'en'
-              ? 'Building site – expected ~1 min – ' + elapsed + 's so far'
-              : 'Bygging av nettstedet pågår – forventet ~1 min – ' + elapsed + ' sek så langt');
-          } else if (run.status === 'completed') {
-            clearInterval(npActivePollTimer);
-            npActivePollTimer = null;
-            var doneBtn = document.getElementById('np-panel-done');
-            if (run.conclusion === 'success') {
+              ? 'Building site – expected ~1–2 min – ' + elapsed + 's so far'
+              : 'Bygging av nettstedet pågår – forventet ~1–2 min – ' + elapsed + ' sek så langt');
+            return;
+          }
+          // Alle bygg ferdige
+          clearInterval(npActivePollTimer);
+          npActivePollTimer = null;
+          var doneBtn = document.getElementById('np-panel-done');
+          var allSuccess = runs.every(function(r) { return r.conclusion === 'success'; });
+          if (allSuccess) {
+            if (npDialogVisible) {
+              // Dialog åpen: vis nedtelling og naviger automatisk
               hideNpJobIndicator();
               if (doneBtn) doneBtn.style.display = 'inline-block';
               var secs = 3;
               statusEl.textContent = (npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…');
               var cdTimer = setInterval(function() {
                 secs--;
-                if (secs <= 0) {
-                  clearInterval(cdTimer);
-                  navToNewPage();
-                  return;
-                }
+                if (secs <= 0) { clearInterval(cdTimer); navToNewPage(); return; }
                 var el = document.getElementById('np-build-status-text');
                 if (el) el.textContent = (npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…');
               }, 1000);
             } else {
-              hideNpJobIndicator();
-              statusEl.textContent = (npLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + run.conclusion;
-              if (doneBtn) doneBtn.style.display = 'inline-block';
+              // Dialog lukket: ikke naviger automatisk – gjør footer-indikatoren til en lenke
+              var indicator = document.getElementById('np-job-indicator');
+              if (indicator) {
+                indicator.innerHTML = '<a href="' + npNewPageUrl + '" style="color:#9de; display:flex; align-items:center; gap:7px; text-decoration:none;"><i class="fa fa-check-circle" style="font-size:12px;"></i><span>' + (npLang === 'en' ? 'New page ready – click to open' : 'Ny side klar – klikk for å åpne') + '</span></a>';
+              }
             }
+          } else {
+            var failedRun = runs.find(function(r) { return r.conclusion !== 'success'; });
+            hideNpJobIndicator();
+            if (statusEl) statusEl.textContent = (npLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + (failedRun ? failedRun.conclusion : 'unknown');
+            if (doneBtn) doneBtn.style.display = 'inline-block';
           }
         })
         .catch(function() {
