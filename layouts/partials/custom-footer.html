@@ -104,9 +104,12 @@ function getDecapToken() {
     }
 
     function createNpEditor() {
+      var QBT = window.QuillBetterTable || window.quillBetterTable;
+      if (QBT && typeof QBT.default === 'function') QBT = QBT.default;
+      if (typeof QBT !== 'function') QBT = null;
       try {
-        if (!window.qbtRegistered && window.QuillBetterTable) {
-          Quill.register({'modules/better-table': QuillBetterTable}, true);
+        if (!window.qbtRegistered && QBT) {
+          Quill.register({'modules/better-table': QBT}, true);
           window.qbtRegistered = true;
         }
         var mods = {
@@ -126,7 +129,7 @@ function getDecapToken() {
             }
           }
         };
-        if (window.QuillBetterTable) mods['better-table'] = {};
+        if (QBT) mods['better-table'] = {};
         npEditor = new Quill('#np-body-quill', { theme: 'snow', modules: mods });
         setTimeout(function() {
           var btn = document.querySelector('#np-overlay .ql-insertTable');
@@ -1036,9 +1039,12 @@ function getDecapToken() {
 
     loadLibs(function() {
       if (!qeEditor) {
+        var QBT = window.QuillBetterTable || window.quillBetterTable;
+        if (QBT && typeof QBT.default === 'function') QBT = QBT.default;
+        if (typeof QBT !== 'function') QBT = null;
         try {
-          if (!window.qbtRegistered && window.QuillBetterTable) {
-            Quill.register({'modules/better-table': QuillBetterTable}, true);
+          if (!window.qbtRegistered && QBT) {
+            Quill.register({'modules/better-table': QBT}, true);
             window.qbtRegistered = true;
           }
           var mods = {
@@ -1058,7 +1064,7 @@ function getDecapToken() {
               }
             }
           };
-          if (window.QuillBetterTable) mods['better-table'] = {};
+          if (QBT) mods['better-table'] = {};
           qeEditor = new Quill('#qe-body-quill', { theme: 'snow', modules: mods });
         } catch(e) {
           console.warn('Quill init feil (qe):', e);
