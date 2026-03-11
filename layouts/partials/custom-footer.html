@@ -10,6 +10,44 @@ function getDecapToken() {
   }
   return null;
 }
+
+// TipTap lazy-laster (delt av np-dialog og qe-dialog)
+function loadTiptap(callback) {
+  if (window._Tiptap) { callback(); return; }
+  if (window._tiptapLoading) {
+    window.addEventListener('tiptap-ready', function h() { window.removeEventListener('tiptap-ready', h); callback(); });
+    return;
+  }
+  window._tiptapLoading = true;
+  Promise.all([
+    import('https://esm.sh/@tiptap/core@2'),
+    import('https://esm.sh/@tiptap/starter-kit@2'),
+    import('https://esm.sh/@tiptap/extension-table@2'),
+    import('https://esm.sh/@tiptap/extension-table-row@2'),
+    import('https://esm.sh/@tiptap/extension-table-cell@2'),
+    import('https://esm.sh/@tiptap/extension-table-header@2'),
+    import('https://esm.sh/@tiptap/extension-link@2'),
+    import('https://esm.sh/@tiptap/extension-image@2'),
+    import('https://esm.sh/tiptap-markdown')
+  ]).then(function(mods) {
+    window._Tiptap = {
+      Editor:      mods[0].Editor,
+      StarterKit:  mods[1].default,
+      Table:       mods[2].Table,
+      TableRow:    mods[3].TableRow,
+      TableCell:   mods[4].TableCell,
+      TableHeader: mods[5].TableHeader,
+      Link:        mods[6].Link,
+      Image:       mods[7].Image,
+      Markdown:    mods[8].Markdown || (mods[8].default && mods[8].default.Markdown) || mods[8].default
+    };
+    window.dispatchEvent(new Event('tiptap-ready'));
+    callback();
+  }).catch(function(err) {
+    console.error('TipTap load failed', err);
+    alert('Kunne ikke laste editoren. Prøv å oppdatere siden.');
+  });
+}
 </script>
 
 <!-- Language switcher toggle -->
@@ -78,72 +116,48 @@ function getDecapToken() {
   var overlay = document.getElementById('np-overlay');
   if (!overlay) return;
 
-  // Quill + Turndown – lazy-lastet fra CDN ved første åpning
   var npEditor = null;
-  var npEditorLoaded = false;
-  var npImages = {};    // { 'bilde-123.png': '<base64>' }
-  var npImageMap = {};  // { 'data:image/...base64...' : 'bilde-123.png' }
+  var npImages = {};   // { 'bilde-123.png': '<base64>' }
+  var npImageMap = {}; // { 'data:image/...base64...' : 'bilde-123.png' }
 
-  function initQuill(callback) {
-    if (npEditorLoaded) {
-      if (npEditor) npEditor.setContents([]);
+  function initNpEditor(callback) {
+    if (npEditor) {
+      npEditor.commands.setContent('');
       npImages = {}; npImageMap = {};
       callback(); return;
     }
-    if (!document.getElementById('quill-snow-css')) {
-      var cssQ = document.createElement('link');
-      cssQ.id = 'quill-snow-css'; cssQ.rel = 'stylesheet';
-      cssQ.href = 'https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css';
-      document.head.appendChild(cssQ);
-    }
-    function createNpEditor() {
-      npEditorLoaded = true;
-      npEditor = new Quill('#np-body-quill', {
-        theme: 'snow',
-        modules: {
-          toolbar: {
-            container: [
-              ['bold', 'italic'],
-              [{ 'header': [2, 3, false] }],
-              [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-              ['link', 'clean'],
-              ['insertTable']
-            ],
-            handlers: {
-              insertTable: function() {
-                var range = npEditor.getSelection(true);
-                var idx = range ? range.index : npEditor.getLength() - 1;
-                var tbl = '| Kolonne 1 | Kolonne 2 | Kolonne 3 |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |\n';
-                npEditor.insertText(idx, tbl, 'user');
-                npEditor.setSelection(idx + tbl.length);
-              }
-            }
-          }
-        }
+    loadTiptap(function() {
+      var T = window._Tiptap;
+      npEditor = new T.Editor({
+        element: document.getElementById('np-body-pm'),
+        extensions: [
+          T.StarterKit,
+          T.Table.configure({ resizable: false }),
+          T.TableRow,
+          T.TableCell,
+          T.TableHeader,
+          T.Link.configure({ openOnClick: false }),
+          T.Image,
+          T.Markdown.configure({ html: false, transformPastedText: true })
+        ],
+        content: ''
       });
-      setTimeout(function() {
-        var btn = document.querySelector('#np-overlay .ql-insertTable');
-        if (btn) { btn.textContent = '⊞'; btn.title = 'Sett inn tabell'; }
-      }, 0);
-      // Intercepter bilde-lim: lagre som fil, vis data-URL som preview
-      npEditor.root.addEventListener('paste', function(e) {
+      setupNpToolbar(npEditor);
+      npEditor.view.dom.addEventListener('paste', function(e) {
         var items = e.clipboardData && e.clipboardData.items;
         if (!items) return;
         for (var i = 0; i < items.length; i++) {
           if (items[i].type.indexOf('image') !== -1) {
             e.preventDefault();
-            e.stopPropagation();
             (function(item) {
               var ext = item.type === 'image/jpeg' ? 'jpg' : 'png';
-              var filename = 'bilde-' + Date.now() + '.' + ext;
+              var fname = 'bilde-' + Date.now() + '.' + ext;
               var reader = new FileReader();
               reader.onload = function(evt) {
                 var dataUrl = evt.target.result;
-                npImages[filename] = dataUrl.split(',')[1];
-                npImageMap[dataUrl] = filename;
-                var range = npEditor.getSelection(true);
-                npEditor.insertEmbed(range ? range.index : 0, 'image', dataUrl);
-                if (range) npEditor.setSelection(range.index + 1);
+                npImages[fname] = dataUrl.split(',')[1];
+                npImageMap[dataUrl] = fname;
+                npEditor.chain().focus().setImage({ src: dataUrl }).run();
               };
               reader.readAsDataURL(item.getAsFile());
             })(items[i]);
@@ -152,42 +166,60 @@ function getDecapToken() {
         }
       }, true);
       callback();
-    }
-
-    function loadTurndown() {
-      function loadGfm() {
-        if (window.turndownPluginGfm) { createNpEditor(); return; }
-        var s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/turndown-plugin-gfm/dist/turndown-plugin-gfm.js';
-        s.onload = createNpEditor; s.onerror = createNpEditor;
-        document.head.appendChild(s);
-      }
-      if (window.TurndownService) { loadGfm(); return; }
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/turndown/dist/turndown.js';
-      s.onload = loadGfm; s.onerror = createNpEditor;
-      document.head.appendChild(s);
-    }
-    function loadQuill() {
-      if (window.Quill) { loadTurndown(); return; }
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js';
-      s.onload = loadTurndown; s.onerror = function() { npEditorLoaded = true; callback(); };
-      document.head.appendChild(s);
-    }
-    loadQuill();
+    });
   }
 
-  function quillToMarkdown() {
-    if (!npEditor) return '';
-    var html = npEditor.root.innerHTML;
-    // Bytt data-URLer med relative filnavn før Turndown konverterer
-    Object.keys(npImageMap).forEach(function(dataUrl) {
-      html = html.split(dataUrl).join(npImageMap[dataUrl]);
+  function setupNpToolbar(editor) {
+    var toolbar = document.getElementById('np-toolbar');
+    if (!toolbar) return;
+    toolbar.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-np]');
+      if (!btn) return;
+      e.preventDefault();
+      var cmd = btn.getAttribute('data-np');
+      switch(cmd) {
+        case 'bold':   editor.chain().focus().toggleBold().run(); break;
+        case 'italic': editor.chain().focus().toggleItalic().run(); break;
+        case 'h2':     editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
+        case 'h3':     editor.chain().focus().toggleHeading({ level: 3 }).run(); break;
+        case 'ul':     editor.chain().focus().toggleBulletList().run(); break;
+        case 'ol':     editor.chain().focus().toggleOrderedList().run(); break;
+        case 'link':
+          var url = window.prompt('URL:');
+          if (url) editor.chain().focus().setLink({ href: url }).run();
+          else if (editor.isActive('link')) editor.chain().focus().unsetLink().run();
+          break;
+        case 'table':
+          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
+      }
+      updateNpToolbarState(editor);
     });
-    var td = new TurndownService({ headingStyle: 'atx', bulletListMarker: '-' });
-    if (window.turndownPluginGfm) td.use(window.turndownPluginGfm.tables);
-    return td.turndown(html).trim();
+    editor.on('selectionUpdate', function() { updateNpToolbarState(editor); });
+    editor.on('transaction',     function() { updateNpToolbarState(editor); });
+  }
+
+  function updateNpToolbarState(editor) {
+    var tb = document.getElementById('np-toolbar');
+    if (!tb) return;
+    tb.querySelectorAll('[data-np]').forEach(function(btn) {
+      var cmd = btn.getAttribute('data-np');
+      var active = false;
+      if      (cmd === 'bold')   active = editor.isActive('bold');
+      else if (cmd === 'italic') active = editor.isActive('italic');
+      else if (cmd === 'h2')     active = editor.isActive('heading', { level: 2 });
+      else if (cmd === 'h3')     active = editor.isActive('heading', { level: 3 });
+      else if (cmd === 'ul')     active = editor.isActive('bulletList');
+      else if (cmd === 'ol')     active = editor.isActive('orderedList');
+      else if (cmd === 'link')   active = editor.isActive('link');
+      btn.classList.toggle('is-active', active);
+    });
+  }
+
+  function npEditorToMarkdown() {
+    if (!npEditor) return '';
+    var md = npEditor.storage.markdown.getMarkdown();
+    Object.keys(npImageMap).forEach(function(dataUrl) { md = md.split(dataUrl).join(npImageMap[dataUrl]); });
+    return md.trim();
   }
 
   // Laster opp binærfiler som GitHub-blobs, returnerer tree-items med SHA
@@ -272,7 +304,7 @@ function getDecapToken() {
 
     npDialogVisible = true;
     overlay.style.display = 'block';
-    initQuill(function() { document.getElementById('np-title-nb').focus(); });
+    initNpEditor(function() { document.getElementById('np-title-nb').focus(); });
   };
 
   window.openNewChildDialog = function(repo, dirPath, lang, currentPermalink) {
@@ -309,7 +341,7 @@ function getDecapToken() {
 
     npDialogVisible = true;
     overlay.style.display = 'block';
-    initQuill(function() { document.getElementById('np-title-nb').focus(); });
+    initNpEditor(function() { document.getElementById('np-title-nb').focus(); });
   };
 
   function closeDialog() { overlay.style.display = 'none'; npDialogVisible = false; }
@@ -371,7 +403,7 @@ function getDecapToken() {
     var linkTitleNb = document.getElementById('np-linktitle-nb').value.trim();
     var weight      = document.getElementById('np-weight').value.trim();
     var statusNb    = document.getElementById('np-status').value;
-    var body        = quillToMarkdown();
+    var body        = npEditorToMarkdown();
 
     if (!titleNb) { showMsg('error', 'Tittel er påkrevd.'); return; }
 
@@ -892,7 +924,7 @@ function getDecapToken() {
 
 </script>
 
-<!-- Rediger innhold: Quill WYSIWYG – hent eksisterende side, rediger, lagre til GitHub -->
+<!-- Rediger innhold: TipTap WYSIWYG – hent eksisterende side, rediger, lagre til GitHub -->
 <script>
 (function() {
   var overlay = document.getElementById('qe-overlay');
@@ -901,46 +933,6 @@ function getDecapToken() {
   var qeRepo = '', qeFilePath = '', qeLang = 'nb', qePageTitle = '', qePermalink = '';
   var qeFrontmatter = '', qeEditor = null, qePollTimer = null;
   var qeImages = {}, qeImageMap = {};
-
-  // Lazy-last Quill + Turndown + marked (gjenbruk hvis allerede lastet)
-  function loadLibs(callback) {
-    function onDone() { callback(); }
-    function loadMarked() {
-      if (window.marked) { onDone(); return; }
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
-      s.onload = onDone; s.onerror = onDone;
-      document.head.appendChild(s);
-    }
-    function loadTurndown() {
-      function loadGfm() {
-        if (window.turndownPluginGfm) { loadMarked(); return; }
-        var s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/turndown-plugin-gfm/dist/turndown-plugin-gfm.js';
-        s.onload = loadMarked; s.onerror = loadMarked;
-        document.head.appendChild(s);
-      }
-      if (window.TurndownService) { loadGfm(); return; }
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/turndown/dist/turndown.js';
-      s.onload = loadGfm; s.onerror = onDone;
-      document.head.appendChild(s);
-    }
-    function loadQuill() {
-      if (window.Quill) { loadTurndown(); return; }
-      if (!document.getElementById('quill-snow-css')) {
-        var cssQ = document.createElement('link');
-        cssQ.id = 'quill-snow-css'; cssQ.rel = 'stylesheet';
-        cssQ.href = 'https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css';
-        document.head.appendChild(cssQ);
-      }
-      var s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js';
-      s.onload = loadTurndown; s.onerror = onDone;
-      document.head.appendChild(s);
-    }
-    loadQuill();
-  }
 
   function parseFrontmatter(content) {
     var m = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
@@ -981,6 +973,57 @@ function getDecapToken() {
     if (el) el.textContent = text;
   }
 
+  function setupQeToolbar(editor) {
+    var toolbar = document.getElementById('qe-toolbar');
+    if (!toolbar) return;
+    toolbar.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-qe]');
+      if (!btn) return;
+      e.preventDefault();
+      var cmd = btn.getAttribute('data-qe');
+      switch(cmd) {
+        case 'bold':         editor.chain().focus().toggleBold().run(); break;
+        case 'italic':       editor.chain().focus().toggleItalic().run(); break;
+        case 'h2':           editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
+        case 'h3':           editor.chain().focus().toggleHeading({ level: 3 }).run(); break;
+        case 'ul':           editor.chain().focus().toggleBulletList().run(); break;
+        case 'ol':           editor.chain().focus().toggleOrderedList().run(); break;
+        case 'link':
+          var url = window.prompt('URL:');
+          if (url) editor.chain().focus().setLink({ href: url }).run();
+          else if (editor.isActive('link')) editor.chain().focus().unsetLink().run();
+          break;
+        case 'table':        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
+        case 'addRowBefore': editor.chain().focus().addRowBefore().run(); break;
+        case 'addRowAfter':  editor.chain().focus().addRowAfter().run(); break;
+        case 'deleteRow':    editor.chain().focus().deleteRow().run(); break;
+        case 'addColBefore': editor.chain().focus().addColumnBefore().run(); break;
+        case 'addColAfter':  editor.chain().focus().addColumnAfter().run(); break;
+        case 'deleteCol':    editor.chain().focus().deleteColumn().run(); break;
+        case 'clear':        editor.chain().focus().clearNodes().unsetAllMarks().run(); break;
+      }
+    });
+    editor.on('selectionUpdate', function() { updateQeToolbarState(editor); });
+    editor.on('transaction',     function() { updateQeToolbarState(editor); });
+  }
+
+  function updateQeToolbarState(editor) {
+    var tb = document.getElementById('qe-toolbar');
+    if (!tb) return;
+    tb.querySelectorAll('[data-qe]').forEach(function(btn) {
+      var cmd = btn.getAttribute('data-qe');
+      var active = false;
+      if      (cmd === 'bold')   active = editor.isActive('bold');
+      else if (cmd === 'italic') active = editor.isActive('italic');
+      else if (cmd === 'h2')     active = editor.isActive('heading', { level: 2 });
+      else if (cmd === 'h3')     active = editor.isActive('heading', { level: 3 });
+      else if (cmd === 'ul')     active = editor.isActive('bulletList');
+      else if (cmd === 'ol')     active = editor.isActive('orderedList');
+      else if (cmd === 'link')   active = editor.isActive('link');
+      btn.classList.toggle('is-active', active);
+    });
+  }
+
   window.openQuillEditDialog = function(repo, filePath, lang, pageTitle, permalink) {
     qeRepo = repo; qeFilePath = filePath; qeLang = lang || 'nb';
     qePageTitle = pageTitle; qePermalink = permalink || '';
@@ -1002,41 +1045,30 @@ function getDecapToken() {
     setStatus(lang === 'en' ? 'Loading…' : 'Laster…');
     overlay.style.display = 'flex';
 
-    loadLibs(function() {
+    loadTiptap(function() {
+      var T = window._Tiptap;
       if (!qeEditor) {
-        qeEditor = new Quill('#qe-body-quill', {
-          theme: 'snow',
-          modules: {
-            toolbar: {
-              container: [
-                ['bold', 'italic'],
-                [{ 'header': [2, 3, false] }],
-                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                ['link', 'clean'],
-                ['insertTable']
-              ],
-              handlers: {
-                insertTable: function() {
-                  var range = qeEditor.getSelection(true);
-                  var idx = range ? range.index : qeEditor.getLength() - 1;
-                  var tbl = '| Kolonne 1 | Kolonne 2 | Kolonne 3 |\n| --- | --- | --- |\n|  |  |  |\n|  |  |  |\n';
-                  qeEditor.insertText(idx, tbl, 'user');
-                  qeEditor.setSelection(idx + tbl.length);
-                }
-              }
-            }
-          }
+        qeEditor = new T.Editor({
+          element: document.getElementById('qe-body-pm'),
+          extensions: [
+            T.StarterKit,
+            T.Table.configure({ resizable: false }),
+            T.TableRow,
+            T.TableCell,
+            T.TableHeader,
+            T.Link.configure({ openOnClick: false }),
+            T.Image,
+            T.Markdown.configure({ html: false, transformPastedText: true })
+          ],
+          content: ''
         });
-        setTimeout(function() {
-          var btn = document.querySelector('#qe-editor-area .ql-insertTable');
-          if (btn) { btn.textContent = '⊞'; btn.title = 'Sett inn tabell (3×3)'; }
-        }, 0);
-        qeEditor.root.addEventListener('paste', function(e) {
+        setupQeToolbar(qeEditor);
+        qeEditor.view.dom.addEventListener('paste', function(e) {
           var items = e.clipboardData && e.clipboardData.items;
           if (!items) return;
           for (var i = 0; i < items.length; i++) {
             if (items[i].type.indexOf('image') !== -1) {
-              e.preventDefault(); e.stopPropagation();
+              e.preventDefault();
               (function(item) {
                 var ext = item.type === 'image/jpeg' ? 'jpg' : 'png';
                 var fname = 'bilde-' + Date.now() + '.' + ext;
@@ -1045,17 +1077,17 @@ function getDecapToken() {
                   var dataUrl = evt.target.result;
                   qeImages[fname] = dataUrl.split(',')[1];
                   qeImageMap[dataUrl] = fname;
-                  var range = qeEditor.getSelection(true);
-                  qeEditor.insertEmbed(range ? range.index : 0, 'image', dataUrl);
-                  if (range) qeEditor.setSelection(range.index + 1);
+                  qeEditor.chain().focus().setImage({ src: dataUrl }).run();
                 };
                 reader.readAsDataURL(item.getAsFile());
-              })(items[i]); break;
+              })(items[i]);
+              break;
             }
           }
         }, true);
       } else {
-        qeEditor.setContents([]);
+        qeEditor.commands.setContent('');
+        qeImages = {}; qeImageMap = {};
       }
 
       var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
@@ -1065,14 +1097,12 @@ function getDecapToken() {
           var raw = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
           var parsed = parseFrontmatter(raw);
           qeFrontmatter = parsed.frontmatter;
-          if (parsed.body && window.marked) {
-            qeEditor.clipboard.dangerouslyPasteHTML(window.marked.parse(parsed.body, { gfm: true }));
-          }
+          qeEditor.commands.setContent(parsed.body || '');
 
           // Fyll inn metadata-felter
-          document.getElementById('qe-field-title').value = parseFmField(qeFrontmatter, 'title');
+          document.getElementById('qe-field-title').value    = parseFmField(qeFrontmatter, 'title');
           document.getElementById('qe-field-linktitle').value = parseFmField(qeFrontmatter, 'linkTitle');
-          document.getElementById('qe-field-weight').value = parseFmField(qeFrontmatter, 'weight');
+          document.getElementById('qe-field-weight').value   = parseFmField(qeFrontmatter, 'weight');
           var currentStatus = parseFmField(qeFrontmatter, 'status');
           var statusOpts = qeLang === 'en'
             ? ['', 'New', 'Early draft', 'In progress', 'For QA', 'Approved', 'Cancelled']
@@ -1088,7 +1118,7 @@ function getDecapToken() {
 
           setStatus('');
           saveBtn.disabled = false;
-          qeEditor.focus();
+          qeEditor.commands.focus();
         })
         .catch(function(err) { setStatus('Feil ved innlasting: ' + err.message); });
     });
@@ -1111,30 +1141,28 @@ function getDecapToken() {
     saveBtn.textContent = qeLang === 'en' ? 'Saving…' : 'Lagrer…';
     setStatus('');
 
-    var html = qeEditor.root.innerHTML;
-    Object.keys(qeImageMap).forEach(function(dataUrl) { html = html.split(dataUrl).join(qeImageMap[dataUrl]); });
-    var td = new TurndownService({ headingStyle: 'atx', bulletListMarker: '-' });
-    if (window.turndownPluginGfm) td.use(window.turndownPluginGfm.tables);
-    var body = td.turndown(html).trim();
+    var md = qeEditor.storage.markdown.getMarkdown();
+    Object.keys(qeImageMap).forEach(function(dataUrl) { md = md.split(dataUrl).join(qeImageMap[dataUrl]); });
+    var body = md.trim();
 
     // Bygg frontmatter fra skjemafeltene
     var fm = qeFrontmatter;
-    var newTitle = document.getElementById('qe-field-title').value.trim();
+    var newTitle     = document.getElementById('qe-field-title').value.trim();
     var newLinkTitle = document.getElementById('qe-field-linktitle').value.trim();
-    var newWeight = document.getElementById('qe-field-weight').value.trim();
-    var newStatus = document.getElementById('qe-field-status').value;
-    if (newTitle) fm = setFmField(fm, 'title', 'title: ' + qeYamlStr(newTitle));
+    var newWeight    = document.getElementById('qe-field-weight').value.trim();
+    var newStatus    = document.getElementById('qe-field-status').value;
+    if (newTitle)     fm = setFmField(fm, 'title',     'title: '     + qeYamlStr(newTitle));
     if (newLinkTitle) fm = setFmField(fm, 'linkTitle', 'linkTitle: ' + qeYamlStr(newLinkTitle));
-    else fm = removeFmField(fm, 'linkTitle');
-    if (newWeight) fm = setFmField(fm, 'weight', 'weight: ' + parseInt(newWeight, 10));
-    else fm = removeFmField(fm, 'weight');
-    if (newStatus) fm = setFmField(fm, 'status', 'status: ' + newStatus);
-    else fm = removeFmField(fm, 'status');
+    else              fm = removeFmField(fm, 'linkTitle');
+    if (newWeight)    fm = setFmField(fm, 'weight', 'weight: ' + parseInt(newWeight, 10));
+    else              fm = removeFmField(fm, 'weight');
+    if (newStatus)    fm = setFmField(fm, 'status', 'status: ' + newStatus);
+    else              fm = removeFmField(fm, 'status');
 
     var newContent = fm + body + '\n';
-    var imgDir = qeFilePath.replace('/_index.' + qeLang + '.md', '');
-    var startTime = Date.now();
-    var commitMsg = (qeLang === 'en' ? 'Updated: ' : 'Oppdatert: ') + qePageTitle;
+    var imgDir     = qeFilePath.replace('/_index.' + qeLang + '.md', '');
+    var startTime  = Date.now();
+    var commitMsg  = (qeLang === 'en' ? 'Updated: ' : 'Oppdatert: ') + qePageTitle;
 
     uploadQeBlobs(token, qeRepo, imgDir, qeImages)
       .then(function(blobItems) { return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg); })
@@ -1142,7 +1170,7 @@ function getDecapToken() {
         setStatus(qeLang === 'en' ? 'Saved! Building…' : 'Lagret! Bygger…');
         saveBtn.disabled = false;
         saveBtn.textContent = qeLang === 'en' ? 'Save' : 'Lagre';
-        qePollTimer = setInterval(function() { pollQeBuild(startTime, qePollTimer); }, 5000);
+        qePollTimer = setInterval(function() { pollQeBuild(startTime); }, 5000);
       })
       .catch(function(err) {
         setStatus('Feil: ' + err.message);
@@ -1151,7 +1179,7 @@ function getDecapToken() {
       });
   });
 
-  function pollQeBuild(startTime, timerRef) {
+  function pollQeBuild(startTime) {
     var token = getDecapToken();
     var h = { 'Accept': 'application/vnd.github+json' };
     if (token) h['Authorization'] = 'token ' + token;
