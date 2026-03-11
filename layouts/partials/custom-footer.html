@@ -1,14 +1,61 @@
 <!-- Delt GitHub-token-hjelper (global, brukes av alle redigeringsfunksjoner) -->
 <script>
-function getDecapToken() {
-  var keys = ['netlify-cms-user', 'decap-cms-user'];
-  for (var i = 0; i < keys.length; i++) {
-    try {
+var SAMT_TOKEN_KEY = 'samt-bu-gh-token';
+
+function getStoredToken() {
+  try {
+    var t = localStorage.getItem(SAMT_TOKEN_KEY);
+    if (t) return t;
+    // Migrasjons-fallback: les fra Decap-nøkler om de finnes
+    var keys = ['netlify-cms-user', 'decap-cms-user'];
+    for (var i = 0; i < keys.length; i++) {
       var val = localStorage.getItem(keys[i]);
       if (val) { var parsed = JSON.parse(val); if (parsed && parsed.token) return parsed.token; }
-    } catch(e) {}
-  }
+    }
+  } catch(e) {}
   return null;
+}
+
+function storeToken(token) {
+  try { localStorage.setItem(SAMT_TOKEN_KEY, token); } catch(e) {}
+}
+
+function doGitHubLogin(onSuccess) {
+  var workerBase = 'https://samt-bu-cms-auth.erik-hag1.workers.dev';
+  var w = 600, h = 700;
+  var left = Math.round((screen.width - w) / 2);
+  var top  = Math.round((screen.height - h) / 2);
+  var popup = window.open(
+    workerBase + '/auth?provider=github&site_id=samt-bu-docs',
+    'samt-gh-oauth',
+    'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top
+  );
+  if (!popup) {
+    alert('Popup ble blokkert av nettleseren. Tillat popup-vinduer for dette nettstedet og prøv igjen.');
+    return;
+  }
+  function handleMessage(e) {
+    var data = e.data;
+    if (data === 'authorizing:github') {
+      // Decap-protokoll: svar til popup slik at den vet vår origin og kan sende token tilbake
+      e.source.postMessage('authorizing:github', e.origin);
+      return;
+    }
+    if (typeof data === 'string' && data.indexOf('authorization:github:success:') === 0) {
+      window.removeEventListener('message', handleMessage);
+      try {
+        var payload = JSON.parse(data.slice('authorization:github:success:'.length));
+        if (payload.token) {
+          storeToken(payload.token);
+          if (popup && !popup.closed) popup.close();
+          onSuccess(payload.token);
+        }
+      } catch(err) {
+        alert('Innlogging feilet: ' + err.message);
+      }
+    }
+  }
+  window.addEventListener('message', handleMessage);
 }
 
 // TipTap lazy-laster (delt av np-dialog og qe-dialog)
@@ -274,11 +321,10 @@ function loadTiptap(callback) {
     npLang = lang || 'nb';
     npCurrentPermalink = currentPermalink || '';
 
-    var token = getDecapToken();
-    if (!token) {
-      alert(npLang === 'en'
-        ? 'You must be logged in via Decap CMS (the Edit menu) before creating new pages.'
-        : 'Du må logge inn via Decap CMS (Endre-menyen) før du kan opprette nye sider.');
+    if (!getStoredToken()) {
+      doGitHubLogin(function() {
+        window.openNewSiblingDialog(repo, parentPath, lang, currentWeight, currentPermalink);
+      });
       return;
     }
 
@@ -314,11 +360,10 @@ function loadTiptap(callback) {
     npLang = lang || 'nb';
     npCurrentPermalink = currentPermalink || '';
 
-    var token = getDecapToken();
-    if (!token) {
-      alert(npLang === 'en'
-        ? 'You must be logged in via Decap CMS (the Edit menu) before creating new pages.'
-        : 'Du må logge inn via Decap CMS (Endre-menyen) før du kan opprette nye sider.');
+    if (!getStoredToken()) {
+      doGitHubLogin(function() {
+        window.openNewChildDialog(repo, dirPath, lang, currentPermalink);
+      });
       return;
     }
 
@@ -393,9 +438,11 @@ function loadTiptap(callback) {
   document.getElementById('np-form').addEventListener('submit', function(e) {
     e.preventDefault();
 
-    var token = getDecapToken();
+    var token = getStoredToken();
     if (!token) {
-      showMsg('error', npLang === 'en' ? 'Not logged in. Please log in via Decap CMS and try again.' : 'Ikke innlogget. Logg inn via Decap CMS og prøv igjen.');
+      doGitHubLogin(function() {
+        document.getElementById('np-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
       return;
     }
 
@@ -616,7 +663,7 @@ function loadTiptap(callback) {
   }
 
   function npPollBuild(startTime) {
-    var token = getDecapToken();
+    var token = getStoredToken();
     var h = { 'Accept': 'application/vnd.github+json' };
     if (token) h['Authorization'] = 'token ' + token;
     var elapsed = 0;
@@ -734,10 +781,10 @@ function loadTiptap(callback) {
     delTitle = title;
     delParentUrl = parentUrl;
 
-    if (!getDecapToken()) {
-      alert(lang === 'en'
-        ? 'You must be logged in via Decap CMS before deleting pages.'
-        : 'Du må logge inn via Decap CMS (Endre-menyen) før du kan slette sider.');
+    if (!getStoredToken()) {
+      doGitHubLogin(function() {
+        window.openDeleteDialog(repo, dirPath, lang, title, parentUrl);
+      });
       return;
     }
 
@@ -767,7 +814,7 @@ function loadTiptap(callback) {
   document.getElementById('del-panel-close').addEventListener('click', closeDialog);
 
   document.getElementById('del-confirm-btn').addEventListener('click', function() {
-    var token = getDecapToken();
+    var token = getStoredToken();
     if (!token) { closeDialog(); return; }
 
     var confirmBtn = document.getElementById('del-confirm-btn');
@@ -852,7 +899,7 @@ function loadTiptap(callback) {
   }
 
   function pollBuild(startTime) {
-    var token = getDecapToken();
+    var token = getStoredToken();
     var h = { 'Accept': 'application/vnd.github+json' };
     if (token) h['Authorization'] = 'token ' + token;
     var elapsed = 0;
@@ -1029,13 +1076,13 @@ function loadTiptap(callback) {
     qePageTitle = pageTitle; qePermalink = permalink || '';
     qeImages = {}; qeImageMap = {};
 
-    var token = getDecapToken();
-    if (!token) {
-      alert(lang === 'en'
-        ? 'You must be logged in via Decap CMS before editing.'
-        : 'Du må logge inn via Decap CMS (Endre-menyen) før du kan redigere.');
+    if (!getStoredToken()) {
+      doGitHubLogin(function() {
+        window.openQuillEditDialog(repo, filePath, lang, pageTitle, permalink);
+      });
       return;
     }
+    var token = getStoredToken();
 
     var cleanTitle = (typeof pageTitle === 'string') ? pageTitle.replace(/^"(.*)"$/, '$1') : pageTitle;
     document.getElementById('qe-title').textContent = (lang === 'en' ? 'Edit page: ' : 'Rediger side: ') + cleanTitle;
@@ -1136,7 +1183,7 @@ function loadTiptap(callback) {
   overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeQeDialog(); e.stopPropagation(); });
 
   document.getElementById('qe-save-btn').addEventListener('click', function() {
-    var token = getDecapToken();
+    var token = getStoredToken();
     if (!token || !qeEditor) return;
     var saveBtn = document.getElementById('qe-save-btn');
     if (saveBtn.onclick) return; // er i "lukk"-modus – la onclick håndtere det
@@ -1185,7 +1232,7 @@ function loadTiptap(callback) {
   });
 
   function pollQeBuild(startTime) {
-    var token = getDecapToken();
+    var token = getStoredToken();
     var h = { 'Accept': 'application/vnd.github+json' };
     if (token) h['Authorization'] = 'token ' + token;
     fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h })
