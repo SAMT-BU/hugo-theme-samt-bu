@@ -63,7 +63,7 @@
 
         </section>
 
-          <aside id="page-toc">
+          {{ if not .Params.hide_toc }}<aside id="page-toc">
             {{ $hasToc := strings.Contains .TableOfContents "<li>" }}
             {{ $children := .Pages }}
             {{ if .Sections }}
@@ -90,7 +90,7 @@
               {{ .TableOfContents }}
             {{ end }}
             <div class="toc-scroll-fade" aria-hidden="true"></div>
-          </aside>
+          </aside>{{ end }}
         </div><!-- End body-toc-wrapper -->
 
         </div> <!-- End col-sm-12 -->

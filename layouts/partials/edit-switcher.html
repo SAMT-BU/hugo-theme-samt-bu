@@ -358,6 +358,7 @@
     <label style="display:flex; align-items:center; gap:.3rem; font-size:13px; color:#444;">{{ cond (eq $lang "en") "Menu" "Meny" }}<input id="qe-field-linktitle" type="text" placeholder="{{ cond (eq $lang "en") "(optional)" "(valgfri)" }}" style="margin-left:.2rem; padding:.25rem .45rem; border:1px solid #bbb; border-radius:3px; font-size:14px; width:140px;"></label>
     <label style="display:flex; align-items:center; gap:.3rem; font-size:13px; color:#444;">{{ cond (eq $lang "en") "Weight" "Vekt" }}<input id="qe-field-weight" type="number" min="1" style="margin-left:.2rem; padding:.25rem .45rem; border:1px solid #bbb; border-radius:3px; font-size:14px; width:65px;"></label>
     <label style="display:flex; align-items:center; gap:.3rem; font-size:13px; color:#444;">Status<select id="qe-field-status" style="margin-left:.2rem; padding:.25rem .45rem; border:1px solid #bbb; border-radius:3px; font-size:14px; background:#fff;"></select></label>
+    <label style="display:flex; align-items:center; gap:.3rem; font-size:13px; color:#444;"><input id="qe-field-hidetoc" type="checkbox" style="margin:0;"> {{ cond (eq $lang "en") "Hide TOC" "Skjul innholdsfortegnelse" }}</label>
   </div>
   <div id="qe-editor-area" style="flex:1; display:flex; flex-direction:column; max-width:960px; width:100%; margin:0 auto; min-height:0;">
     <div class="tiptap-toolbar" id="qe-toolbar">

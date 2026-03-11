@@ -1116,6 +1116,8 @@ function loadTiptap(callback) {
             sel.appendChild(o);
           });
 
+          document.getElementById('qe-field-hidetoc').checked = parseFmField(qeFrontmatter, 'hide_toc') === 'true';
+
           setStatus('');
           saveBtn.disabled = false;
           qeEditor.commands.focus();
@@ -1158,6 +1160,8 @@ function loadTiptap(callback) {
     else              fm = removeFmField(fm, 'weight');
     if (newStatus)    fm = setFmField(fm, 'status', 'status: ' + newStatus);
     else              fm = removeFmField(fm, 'status');
+    if (document.getElementById('qe-field-hidetoc').checked) fm = setFmField(fm, 'hide_toc', 'hide_toc: true');
+    else              fm = removeFmField(fm, 'hide_toc');
 
     var newContent = fm + body + '\n';
     var imgDir     = qeFilePath.replace('/_index.' + qeLang + '.md', '');
