@@ -328,9 +328,6 @@ function loadTiptap(callback) {
       return;
     }
 
-    document.getElementById('np-form').style.display = '';
-    document.getElementById('np-build-section').style.display = 'none';
-    document.getElementById('np-panel-done').style.display = 'none';
     document.getElementById('np-form').reset();
     document.getElementById('np-status').value = 'Ny';
     if (currentWeight) {
@@ -341,15 +338,10 @@ function loadTiptap(callback) {
     submitBtn.disabled = false;
     submitBtn.textContent = npLang === 'en' ? 'Create page' : 'Opprett side';
 
-    // Tilbakestill posisjon og tittel ved ny åpning
-    var npDialog = document.getElementById('np-dialog');
-    npDialog.style.transform = 'translate(-50%,-50%)';
-    npDialog.style.left = '50%';
-    npDialog.style.top = '50%';
     document.getElementById('np-dialog-title').textContent = npLang === 'en' ? 'New page – same level' : 'Ny side – samme nivå';
-
+    setNpStatus('');
     npDialogVisible = true;
-    overlay.style.display = 'block';
+    overlay.style.display = 'flex';
     initNpEditor(function() { document.getElementById('np-title-nb').focus(); });
   };
 
@@ -367,9 +359,6 @@ function loadTiptap(callback) {
       return;
     }
 
-    document.getElementById('np-form').style.display = '';
-    document.getElementById('np-build-section').style.display = 'none';
-    document.getElementById('np-panel-done').style.display = 'none';
     document.getElementById('np-form').reset();
     document.getElementById('np-status').value = 'Ny';
     document.getElementById('np-weight').value = 10;
@@ -378,14 +367,10 @@ function loadTiptap(callback) {
     submitBtn.disabled = false;
     submitBtn.textContent = npLang === 'en' ? 'Create sub-chapter' : 'Opprett underkapittel';
 
-    var npDialog = document.getElementById('np-dialog');
-    npDialog.style.transform = 'translate(-50%,-50%)';
-    npDialog.style.left = '50%';
-    npDialog.style.top = '50%';
     document.getElementById('np-dialog-title').textContent = npLang === 'en' ? 'New sub-chapter' : 'Nytt underkapittel';
-
+    setNpStatus('');
     npDialogVisible = true;
-    overlay.style.display = 'block';
+    overlay.style.display = 'flex';
     initNpEditor(function() { document.getElementById('np-title-nb').focus(); });
   };
 
@@ -398,36 +383,6 @@ function loadTiptap(callback) {
   });
 
   document.getElementById('np-cancel').addEventListener('click', closeDialog);
-  document.getElementById('np-close-x').addEventListener('click', closeDialog);
-  document.getElementById('np-panel-close').addEventListener('click', closeDialog);
-
-  // Drag-logikk: dra i tittelbaren
-  var npDragHandle = document.getElementById('np-drag-handle');
-  var npDialogEl = document.getElementById('np-dialog');
-  var dragging = false, dragOffX = 0, dragOffY = 0;
-
-  npDragHandle.addEventListener('mousedown', function(e) {
-    if (e.target.id === 'np-close-x') return;
-    var rect = npDialogEl.getBoundingClientRect();
-    npDialogEl.style.transform = '';
-    npDialogEl.style.left = rect.left + 'px';
-    npDialogEl.style.top = rect.top + 'px';
-    dragOffX = e.clientX - rect.left;
-    dragOffY = e.clientY - rect.top;
-    dragging = true;
-    npDragHandle.style.cursor = 'grabbing';
-    e.preventDefault();
-  });
-
-  document.addEventListener('mousemove', function(e) {
-    if (!dragging) return;
-    npDialogEl.style.left = (e.clientX - dragOffX) + 'px';
-    npDialogEl.style.top  = (e.clientY - dragOffY) + 'px';
-  });
-
-  document.addEventListener('mouseup', function() {
-    if (dragging) { dragging = false; npDragHandle.style.cursor = 'grab'; }
-  });
 
   // Fix 1: skjul feilmelding så snart brukeren begynner å rette
   ['np-title-nb', 'np-linktitle-nb', 'np-weight', 'np-status'].forEach(function(id) {
@@ -635,15 +590,13 @@ function loadTiptap(callback) {
     });
   }
 
+  function setNpStatus(text) {
+    var el = document.getElementById('np-status-text');
+    if (el) el.textContent = text;
+  }
+
   function showNpBuildPanel() {
-    document.getElementById('np-form').style.display = 'none';
-    document.getElementById('np-build-section').style.display = 'block';
-    document.getElementById('np-dialog-title').textContent = npMode === 'child'
-      ? (npLang === 'en' ? 'Creating sub-chapter "' + npTitle + '"…' : 'Oppretter underkapittel «' + npTitle + '»…')
-      : (npLang === 'en' ? 'Creating "' + npTitle + '"…' : 'Oppretter «' + npTitle + '»…');
-    document.getElementById('np-build-status-text').textContent =
-      npLang === 'en' ? 'Waiting for build to start…' : 'Bygging av nettstedet starter om litt…';
-    document.getElementById('np-panel-done').style.display = 'none';
+    setNpStatus(npLang === 'en' ? 'Waiting for build to start…' : 'Bygging av nettstedet starter om litt…');
   }
 
   function showNpJobIndicator() {
@@ -667,65 +620,56 @@ function loadTiptap(callback) {
     var h = { 'Accept': 'application/vnd.github+json' };
     if (token) h['Authorization'] = 'token ' + token;
     var elapsed = 0;
-    var lastAllCompleteAt = 0; // tidspunkt da alle kjente bygg sist ble sett som ferdige
+    var lastAllCompleteAt = 0;
 
     npActivePollTimer = setInterval(function() {
       elapsed += 5;
-      var statusEl = document.getElementById('np-build-status-text');
-      if (!statusEl) { clearInterval(npActivePollTimer); return; }
 
       fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=20', { headers: h })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (!data.workflow_runs || !data.workflow_runs.length) {
-            statusEl.textContent = (npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
+            setNpStatus((npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)');
             return;
           }
           var runs = data.workflow_runs.filter(function(r) {
             return new Date(r.created_at).getTime() >= startTime - 30000;
           });
           if (!runs.length) {
-            statusEl.textContent = (npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
+            setNpStatus((npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)');
             return;
           }
           var anyPending = runs.some(function(r) {
             return r.status === 'queued' || r.status === 'in_progress';
           });
           if (anyPending) {
-            lastAllCompleteAt = 0; // aktive bygg – nullstill grace-periode
-            statusEl.textContent = (npLang === 'en'
+            lastAllCompleteAt = 0;
+            setNpStatus(npLang === 'en'
               ? 'Building site – expected ~1 min – ' + elapsed + 's so far'
               : 'Bygging av nettstedet pågår – forventet ~1 min – ' + elapsed + ' sek så langt');
             return;
           }
-          // Alle kjente bygg ferdige – vent 15 sek for å fange ev. ensure-uuids-bygg
           if (!lastAllCompleteAt) { lastAllCompleteAt = Date.now(); }
           if (Date.now() - lastAllCompleteAt < 15000) {
-            statusEl.textContent = (npLang === 'en'
+            setNpStatus(npLang === 'en'
               ? 'Build done, verifying… (' + elapsed + 's)'
               : 'Bygg ferdig, verifiserer… (' + elapsed + ' sek)');
             return;
           }
-          // 15 sek uten nye aktive bygg → ferdig
           clearInterval(npActivePollTimer);
           npActivePollTimer = null;
-          var doneBtn = document.getElementById('np-panel-done');
           var allSuccess = runs.every(function(r) { return r.conclusion === 'success'; });
           if (allSuccess) {
             if (npDialogVisible) {
-              // Dialog åpen: vis nedtelling og naviger automatisk
               hideNpJobIndicator();
-              if (doneBtn) doneBtn.style.display = 'inline-block';
               var secs = 3;
-              statusEl.textContent = (npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…');
+              setNpStatus((npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…'));
               var cdTimer = setInterval(function() {
                 secs--;
                 if (secs <= 0) { clearInterval(cdTimer); navToNewPage(); return; }
-                var el = document.getElementById('np-build-status-text');
-                if (el) el.textContent = (npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…');
+                setNpStatus((npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…'));
               }, 1000);
             } else {
-              // Dialog lukket: ikke naviger automatisk – gjør footer-indikatoren til en lenke
               var indicator = document.getElementById('np-job-indicator');
               if (indicator) {
                 indicator.innerHTML = '<a href="' + npNewPageUrl + '" style="color:#9de; display:flex; align-items:center; gap:7px; text-decoration:none;"><i class="fa fa-check-circle" style="font-size:12px;"></i><span>' + (npLang === 'en' ? 'New page ready – click to open' : 'Ny side klar – klikk for å åpne') + '</span></a>';
@@ -734,20 +678,13 @@ function loadTiptap(callback) {
           } else {
             var failedRun = runs.find(function(r) { return r.conclusion !== 'success'; });
             hideNpJobIndicator();
-            if (statusEl) statusEl.textContent = (npLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + (failedRun ? failedRun.conclusion : 'unknown');
-            if (doneBtn) doneBtn.style.display = 'inline-block';
+            setNpStatus((npLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + (failedRun ? failedRun.conclusion : 'unknown'));
           }
         })
         .catch(function() {
-          statusEl.textContent = (npLang === 'en' ? 'Checking… (' : 'Sjekker… (') + elapsed + 's)';
+          setNpStatus((npLang === 'en' ? 'Checking… (' : 'Sjekker… (') + elapsed + 's)');
         });
     }, 5000);
-
-    document.getElementById('np-panel-done').onclick = function() {
-      clearInterval(npActivePollTimer); npActivePollTimer = null;
-      hideNpJobIndicator();
-      navToNewPage();
-    };
   }
 
   function showMsg(type, text) {
