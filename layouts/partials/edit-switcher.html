@@ -159,9 +159,9 @@
       </a>
     </li>
     {{ end }}
-    {{ if and .File (ne $addChildURL "") }}
+    {{ if and .File (ne $dirPath "content") }}
     <li>
-      <a href="#" data-msg="{{ cond (eq $lang `en`) `Under implementation – not yet available.` `Oppdatert implementering i arbeid\n\nI påvente av oppdatert implementering kan du gjøre dette via GitHub.` }}" onclick="alert(this.getAttribute('data-msg').replace(/\\n/g,'\n')); return false;">
+      <a href="#" onclick="openNewChildDialog('{{ $githubRepo }}', '{{ $dirPath }}', '{{ $lang }}', '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-plus"></i>
         <span>{{ i18n "editSwitcherAddChild" | default (cond (eq $lang "en") "Sub-chapter" "Underkapittel") }}</span>
       </a>
