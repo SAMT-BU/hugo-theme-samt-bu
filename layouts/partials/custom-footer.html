@@ -441,7 +441,15 @@ function getDecapToken() {
               : 'Bygging av nettstedet pågår – forventet ~1–2 min – ' + elapsed + ' sek så langt');
             return;
           }
-          // Alle bygg ferdige
+          // Alle kjente bygg ferdige – men vent på mulig ensure-uuids-bygg (bygg nr. 2)
+          // Nye sider mangler alltid UUID → ensure-uuids committer alltid → 2 hugo.yml-kjøringer forventes
+          if (runs.length < 2 && elapsed < 180) {
+            statusEl.textContent = (npLang === 'en'
+              ? 'Build done, waiting for metadata update… (' + elapsed + 's)'
+              : 'Bygg ferdig, venter på metadata-oppdatering… (' + elapsed + ' sek)');
+            return;
+          }
+          // Alle bygg ferdige (≥2 bygg sett, eller 3-minutters timeout nådd)
           clearInterval(npActivePollTimer);
           npActivePollTimer = null;
           var doneBtn = document.getElementById('np-panel-done');
