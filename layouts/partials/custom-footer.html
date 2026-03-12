@@ -436,8 +436,14 @@ function loadTiptap(callback) {
   document.getElementById('np-form').addEventListener('submit', function(e) {
     e.preventDefault();
 
+    var submitBtn = document.getElementById('np-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Oppretter…';
+
     var token = getStoredToken();
     if (!token) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = npLang === 'en' ? 'Create page' : 'Opprett side';
       doGitHubLogin(function() {
         document.getElementById('np-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       });
@@ -450,14 +456,10 @@ function loadTiptap(callback) {
     var statusNb    = document.getElementById('np-status').value;
     var body        = npEditorToMarkdown();
 
-    if (!titleNb) { showMsg('error', 'Tittel er påkrevd.'); return; }
+    if (!titleNb) { submitBtn.disabled = false; submitBtn.textContent = npLang === 'en' ? 'Create page' : 'Opprett side'; showMsg('error', 'Tittel er påkrevd.'); return; }
 
     // Fix 2: auto-generer slug fra korttittel (evt. tittel)
     var slug = generateSlug(linkTitleNb || titleNb);
-
-    var submitBtn = document.getElementById('np-submit');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Oppretter…';
     hideMsg();
     var startTime = Date.now();
 
@@ -525,7 +527,9 @@ function loadTiptap(callback) {
       .catch(function(err) {
         showMsg('error', 'Feil: ' + err.message);
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Opprett side';
+        submitBtn.textContent = npMode === 'child'
+          ? (npLang === 'en' ? 'Create sub-chapter' : 'Opprett underkapittel')
+          : (npLang === 'en' ? 'Create page' : 'Opprett side');
       });
   });
 
@@ -1145,9 +1149,15 @@ function loadTiptap(callback) {
         pollQeBuild(startTime, qeOldEtag);
       })
       .catch(function(err) {
-        setStatus('Feil: ' + err.message);
+        var msg = err.message;
+        if (msg === 'Update is not a fast forward') {
+          msg = qeLang === 'en' ? 'Conflict: file changed elsewhere. Try again.' : 'Konflikt: siden ble endret av andre. Prøv igjen.';
+        }
+        setStatus('⚠ ' + msg);
         saveBtn.disabled = false;
-        saveBtn.textContent = qeLang === 'en' ? 'Save' : 'Lagre';
+        saveBtn.style.background = '';
+        saveBtn.style.cursor = '';
+        saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
       });
   });
 
