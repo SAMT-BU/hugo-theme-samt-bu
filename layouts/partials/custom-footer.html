@@ -1137,7 +1137,11 @@ function loadTiptap(callback) {
 
   function closeQeDialog() {
     overlay.style.display = 'none';
-    if (qePollTimer) { clearInterval(qePollTimer); qePollTimer = null; }
+    if (qePollTimer) {
+      // Bygg pågår: vis spinner i bunnen i stedet for å avbryte polling
+      var ind = document.getElementById('qe-job-indicator');
+      if (ind) ind.style.display = 'flex';
+    }
   }
 
   document.getElementById('qe-cancel-btn').addEventListener('click', closeQeDialog);
@@ -1223,6 +1227,7 @@ function loadTiptap(callback) {
   });
 
   function pollQeBuild(startTime, oldEtag) {
+    if (qePollTimer) { clearInterval(qePollTimer); qePollTimer = null; }
     var lang = qeLang;
     var url = qePermalink;
     var attempts = 0;
@@ -1231,17 +1236,26 @@ function loadTiptap(callback) {
 
     function onBuildDone() {
       clearInterval(qePollTimer); qePollTimer = null;
-      var secs = 2;
-      setStatus(lang === 'en' ? '✓ Done! Reloading in ' + secs + 's…' : '✓ Ferdig! Laster inn om ' + secs + ' sek…');
-      var btn = document.getElementById('qe-save-btn');
-      if (btn) {
-        btn.disabled = false;
-        btn.style.background = '';
-        btn.style.cursor = '';
-        btn.textContent = lang === 'en' ? 'Reload now ↗' : 'Last inn nå ↗';
-        btn.onclick = function() { clearTimeout(navTimer); doNav(); };
+      var ind = document.getElementById('qe-job-indicator');
+      if (overlay.style.display !== 'none') {
+        // Dialog er åpen: tell ned og last inn automatisk
+        var secs = 2;
+        setStatus(lang === 'en' ? '✓ Done! Reloading in ' + secs + 's…' : '✓ Ferdig! Laster inn om ' + secs + ' sek…');
+        var btn = document.getElementById('qe-save-btn');
+        if (btn) {
+          btn.disabled = false;
+          btn.style.background = '';
+          btn.style.cursor = '';
+          btn.textContent = lang === 'en' ? 'Reload now ↗' : 'Last inn nå ↗';
+          btn.onclick = function() { clearTimeout(navTimer); doNav(); };
+        }
+        var navTimer = setTimeout(doNav, secs * 1000);
+      } else {
+        // Dialog er lukket: erstatt spinner med klikkbar lenke
+        if (ind) {
+          ind.innerHTML = '<a href="' + url + '?_=' + Date.now() + '" style="color:#9de; display:flex; align-items:center; gap:7px; text-decoration:none;"><i class="fa fa-check-circle" style="font-size:12px;"></i><span>' + (lang === 'en' ? 'Changes published \u2013 click to reload' : 'Endringer publisert \u2013 klikk for \u00e5 laste inn') + '</span></a>';
+        }
       }
-      var navTimer = setTimeout(doNav, secs * 1000);
     }
 
     if (oldEtag) {
@@ -1299,5 +1313,50 @@ function loadTiptap(callback) {
         return r.json();
       });
   }
+})();
+</script>
+
+<!-- Bakgrunnspolling: detekter endringer på gjeldende side (andre brukere eller annet bygg) -->
+<script>
+(function() {
+  var pageUrl = window.location.href.split('?')[0];
+  var knownEtag = null;
+  var bgTimer = null;
+
+  // Hent initial ETag etter at siden er ferdig lastet
+  setTimeout(function() {
+    fetch(pageUrl, { method: 'HEAD', cache: 'no-store' })
+      .then(function(r) { knownEtag = r.headers.get('etag') || r.headers.get('last-modified'); })
+      .catch(function() {});
+  }, 4000);
+
+  bgTimer = setInterval(function() {
+    if (!knownEtag) return;
+    // Ikke poll under aktiv rediger/slett-jobb (sjekk synlige indikatorer)
+    var qeInd = document.getElementById('qe-job-indicator');
+    var npInd = document.getElementById('np-job-indicator');
+    var delInd = document.getElementById('del-job-indicator');
+    if ((qeInd && qeInd.style.display !== 'none') ||
+        (npInd && npInd.style.display !== 'none') ||
+        (delInd && delInd.style.display !== 'none')) return;
+
+    fetch(pageUrl + '?_bg=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+      .then(function(r) {
+        var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
+        if (newEtag && newEtag !== knownEtag) {
+          knownEtag = newEtag;
+          clearInterval(bgTimer);
+          var banner = document.getElementById('page-update-banner');
+          if (banner) banner.style.display = 'flex';
+        }
+      })
+      .catch(function() {});
+  }, 45000);
+
+  // Klikk på banneret laster inn siden på nytt
+  setTimeout(function() {
+    var banner = document.getElementById('page-update-banner');
+    if (banner) banner.addEventListener('click', function() { window.location.reload(); });
+  }, 1000);
 })();
 </script>

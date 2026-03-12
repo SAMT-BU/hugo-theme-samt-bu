@@ -189,6 +189,14 @@
   <i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i>
   <span>{{ cond (eq $lang "en") "Update in progress" "Oppdateringsjobb pågår" }}</span>
 </div>
+<div id="qe-job-indicator" style="display:none; position:fixed; bottom:0; left:0; z-index:9998; background:rgba(30,30,30,0.93); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; border-radius:0 4px 0 0; align-items:center; gap:7px;">
+  <i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i>
+  <span>{{ cond (eq $lang "en") "Update in progress" "Oppdateringsjobb pågår" }}</span>
+</div>
+<div id="page-update-banner" style="display:none; position:fixed; bottom:0; right:0; z-index:9997; background:#1a5c4a; color:#e8f5ef; padding:5px 16px 5px 12px; font-size:13px; border-radius:4px 0 0 0; align-items:center; gap:7px; cursor:pointer;">
+  <i class="fa fa-refresh" style="font-size:12px; opacity:.85;"></i>
+  <span>{{ cond (eq $lang "en") "Page updated – click to reload" "Siden er oppdatert – klikk for å laste inn" }}</span>
+</div>
 
 {{/* Modal: Ny side – full-skjerm (samme layout som qe-dialog) */}}
 <div id="np-overlay" style="display:none; position:fixed; inset:0; z-index:99999; flex-direction:column; background:#fff;">
