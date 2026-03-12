@@ -589,14 +589,24 @@ setTimeout(function() {
       { path: enPath, content: enContent }
     ];
 
-    // Hent søskenfiler og last opp bilder parallelt – alt i én commit
+    // Hent søskenfiler og last opp bilder parallelt – alt i én commit (retry ved konflikt)
     var imgDir = npParentPath + '/' + slug;
-    Promise.all([
-      weightInt ? fetchSiblingWeightUpdates(token, npRepo, npParentPath, weightInt, slug) : Promise.resolve([]),
-      uploadImageBlobs(token, npRepo, imgDir, npImages)
-    ]).then(function(results) {
-      return createFilesInOneCommit(token, npRepo, newFiles.concat(results[0]), commitMsg, results[1]);
-    })
+    function tryNpCommit(attemptsLeft) {
+      return Promise.all([
+        weightInt ? fetchSiblingWeightUpdates(token, npRepo, npParentPath, weightInt, slug) : Promise.resolve([]),
+        uploadImageBlobs(token, npRepo, imgDir, npImages)
+      ]).then(function(results) {
+        return createFilesInOneCommit(token, npRepo, newFiles.concat(results[0]), commitMsg, results[1]);
+      }).catch(function(err) {
+        if (err.message === 'Update is not a fast forward' && attemptsLeft > 0) {
+          setNpStatus(npLang === 'en' ? 'Retrying…' : 'Prøver på nytt…');
+          return new Promise(function(res) { setTimeout(res, 1500); })
+            .then(function() { return tryNpCommit(attemptsLeft - 1); });
+        }
+        throw err;
+      });
+    }
+    tryNpCommit(2)
       .then(function() {
         npTitle = titleNb;
         if (npMode === 'child') {
@@ -862,7 +872,17 @@ setTimeout(function() {
     var nbPath = delDirPath + '/_index.nb.md';
     var enPath = delDirPath + '/_index.en.md';
 
-    deleteFilesInOneCommit(token, delRepo, [nbPath, enPath], 'Slett side: ' + delTitle)
+    function tryDelCommit(attemptsLeft) {
+      return deleteFilesInOneCommit(token, delRepo, [nbPath, enPath], 'Slett side: ' + delTitle)
+        .catch(function(err) {
+          if (err.message === 'Update is not a fast forward' && attemptsLeft > 0) {
+            return new Promise(function(res) { setTimeout(res, 1500); })
+              .then(function() { return tryDelCommit(attemptsLeft - 1); });
+          }
+          throw err;
+        });
+    }
+    tryDelCommit(2)
       .then(function() {
         showBuildPanel();
         showJobIndicator();
