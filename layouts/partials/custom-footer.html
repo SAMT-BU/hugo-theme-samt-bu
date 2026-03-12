@@ -780,18 +780,9 @@ setTimeout(function() {
     npActivePollTimer = startUrlPoll(npNewPageUrl,
       function onDone() {
         clearInterval(npActivePollTimer); npActivePollTimer = null;
-        if (npDialogVisible) {
-          hideNpJobIndicator();
-          var secs = 3;
-          setNpStatus((lang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (lang === 'en' ? 's…' : ' sek…'));
-          var cdTimer = setInterval(function() {
-            secs--;
-            if (secs <= 0) { clearInterval(cdTimer); navToNewPage(); return; }
-            setNpStatus((lang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (lang === 'en' ? 's…' : ' sek…'));
-          }, 1000);
-        } else {
-          navToNewPage();
-        }
+        hideNpJobIndicator();
+        samtuClearPending();
+        window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
       },
       function onError(reason) {
         clearInterval(npActivePollTimer); npActivePollTimer = null;
