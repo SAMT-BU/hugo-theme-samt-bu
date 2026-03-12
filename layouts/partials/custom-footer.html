@@ -1137,9 +1137,11 @@ function loadTiptap(callback) {
     uploadQeBlobs(token, qeRepo, imgDir, qeImages)
       .then(function(blobItems) { return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg); })
       .then(function() {
-        setStatus(qeLang === 'en' ? 'Saved! Building…' : 'Lagret! Bygger…');
-        saveBtn.disabled = false;
-        saveBtn.textContent = qeLang === 'en' ? 'Save' : 'Lagre';
+        setStatus(qeLang === 'en' ? 'Saved! Waiting for deploy…' : 'Lagret! Venter på deploy…');
+        saveBtn.disabled = true;
+        saveBtn.textContent = qeLang === 'en' ? 'Saved' : 'Lagret';
+        saveBtn.style.background = '#888';
+        saveBtn.style.cursor = 'default';
         pollQeBuild(startTime, qeOldEtag);
       })
       .catch(function(err) {
@@ -1161,7 +1163,13 @@ function loadTiptap(callback) {
       var secs = 2;
       setStatus(lang === 'en' ? '✓ Done! Reloading in ' + secs + 's…' : '✓ Ferdig! Laster inn om ' + secs + ' sek…');
       var btn = document.getElementById('qe-save-btn');
-      if (btn) { btn.textContent = lang === 'en' ? 'Reload now ↗' : 'Last inn nå ↗'; btn.onclick = function() { clearTimeout(navTimer); doNav(); }; }
+      if (btn) {
+        btn.disabled = false;
+        btn.style.background = '';
+        btn.style.cursor = '';
+        btn.textContent = lang === 'en' ? 'Reload now ↗' : 'Last inn nå ↗';
+        btn.onclick = function() { clearTimeout(navTimer); doNav(); };
+      }
       var navTimer = setTimeout(doNav, secs * 1000);
     }
 
