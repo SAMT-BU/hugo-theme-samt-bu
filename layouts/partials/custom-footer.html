@@ -58,6 +58,47 @@ function doGitHubLogin(onSuccess) {
   window.addEventListener('message', handleMessage);
 }
 
+// Cloudflare Pages deployment polling
+var CF_ACCOUNT_ID = '11cfadda66cca20b7736f23e40a070ef';
+var CF_PROJECT = 'samt-bu-docs';
+function getCfToken() {
+  try { return localStorage.getItem('samt-bu-cf-token') || ''; } catch(e) { return ''; }
+}
+function storeCfToken(t) {
+  try { localStorage.setItem('samt-bu-cf-token', t); } catch(e) {}
+}
+function ensureCfToken(callback) {
+  var t = getCfToken();
+  if (t) { callback(t); return; }
+  var t2 = prompt('Lim inn Cloudflare API-token for å overvåke deploy:\n(Lagres lokalt – kun nødvendig én gang)');
+  if (t2 && t2.trim()) { storeCfToken(t2.trim()); callback(t2.trim()); }
+}
+function startCfPoll(startTime, onDone, onError, onStatus) {
+  var url = 'https://api.cloudflare.com/client/v4/accounts/' + CF_ACCOUNT_ID +
+            '/pages/projects/' + CF_PROJECT + '/deployments?per_page=5';
+  return setInterval(function() {
+    var token = getCfToken();
+    if (!token) { onStatus('Venter…'); return; }
+    fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.result || !data.result.length) { onStatus('Venter på deploy…'); return; }
+        var dep = null;
+        for (var i = 0; i < data.result.length; i++) {
+          if (new Date(data.result[i].created_on).getTime() >= startTime - 60000) {
+            dep = data.result[i]; break;
+          }
+        }
+        if (!dep) { onStatus('Venter på deploy…'); return; }
+        var stage = dep.latest_stage && dep.latest_stage.status;
+        if (stage === 'success') { onDone(); }
+        else if (stage === 'failure' || stage === 'canceled') { onError(stage); }
+        else { onStatus('Deployer…'); }
+      })
+      .catch(function() { onStatus('Sjekker…'); });
+  }, 3000);
+}
+
 // TipTap lazy-laster (delt av np-dialog og qe-dialog)
 function loadTiptap(callback) {
   if (window._Tiptap) { callback(); return; }
@@ -421,8 +462,14 @@ function loadTiptap(callback) {
     var nbPath = npParentPath + '/' + slug + '/_index.nb.md';
     var enPath = npParentPath + '/' + slug + '/_index.en.md';
     var statusEn = STATUS_EN_MAP[statusNb] || 'New';
+    var newId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random() * 16 | 0;
+          return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
 
-    var nbLines = ['---', 'title: ' + yamlStr(titleNb)];
+    var nbLines = ['---', 'id: ' + newId, 'title: ' + yamlStr(titleNb)];
     if (linkTitleNb) nbLines.push('linkTitle: ' + yamlStr(linkTitleNb));
     if (weight) nbLines.push('weight: ' + parseInt(weight, 10));
     if (statusNb) {
@@ -434,7 +481,7 @@ function loadTiptap(callback) {
     var nbContent = nbLines.join('\n') + '\n';
 
     var enTitle = titleNb; // bruker norsk tittel som placeholder
-    var enLines = ['---', 'title: ' + yamlStr(enTitle)];
+    var enLines = ['---', 'id: ' + newId, 'title: ' + yamlStr(enTitle)];
     if (linkTitleNb) enLines.push('linkTitle: ' + yamlStr(linkTitleNb));
     if (weight) enLines.push('weight: ' + parseInt(weight, 10));
     if (statusNb) {
@@ -616,75 +663,35 @@ function loadTiptap(callback) {
   }
 
   function npPollBuild(startTime) {
-    var token = getStoredToken();
-    var h = { 'Accept': 'application/vnd.github+json' };
-    if (token) h['Authorization'] = 'token ' + token;
-    var elapsed = 0;
-    var lastAllCompleteAt = 0;
-
-    npActivePollTimer = setInterval(function() {
-      elapsed += 5;
-
-      fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=20', { headers: h })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (!data.workflow_runs || !data.workflow_runs.length) {
-            setNpStatus((npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)');
-            return;
-          }
-          var runs = data.workflow_runs.filter(function(r) {
-            return new Date(r.created_at).getTime() >= startTime - 30000;
-          });
-          if (!runs.length) {
-            setNpStatus((npLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)');
-            return;
-          }
-          var anyPending = runs.some(function(r) {
-            return r.status === 'queued' || r.status === 'in_progress';
-          });
-          if (anyPending) {
-            lastAllCompleteAt = 0;
-            setNpStatus(npLang === 'en'
-              ? 'Building site – expected ~1 min – ' + elapsed + 's so far'
-              : 'Bygging av nettstedet pågår – forventet ~1 min – ' + elapsed + ' sek så langt');
-            return;
-          }
-          if (!lastAllCompleteAt) { lastAllCompleteAt = Date.now(); }
-          if (Date.now() - lastAllCompleteAt < 15000) {
-            setNpStatus(npLang === 'en'
-              ? 'Build done, verifying… (' + elapsed + 's)'
-              : 'Bygg ferdig, verifiserer… (' + elapsed + ' sek)');
-            return;
-          }
-          clearInterval(npActivePollTimer);
-          npActivePollTimer = null;
-          var allSuccess = runs.every(function(r) { return r.conclusion === 'success'; });
-          if (allSuccess) {
-            if (npDialogVisible) {
-              hideNpJobIndicator();
-              var secs = 3;
-              setNpStatus((npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…'));
-              var cdTimer = setInterval(function() {
-                secs--;
-                if (secs <= 0) { clearInterval(cdTimer); navToNewPage(); return; }
-                setNpStatus((npLang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (npLang === 'en' ? 's…' : ' sek…'));
-              }, 1000);
-            } else {
-              var indicator = document.getElementById('np-job-indicator');
-              if (indicator) {
-                indicator.innerHTML = '<a href="' + npNewPageUrl + '" style="color:#9de; display:flex; align-items:center; gap:7px; text-decoration:none;"><i class="fa fa-check-circle" style="font-size:12px;"></i><span>' + (npLang === 'en' ? 'New page ready – click to open' : 'Ny side klar – klikk for å åpne') + '</span></a>';
-              }
-            }
-          } else {
-            var failedRun = runs.find(function(r) { return r.conclusion !== 'success'; });
+    var lang = npLang;
+    ensureCfToken(function() {
+      npActivePollTimer = startCfPoll(startTime,
+        function onDone() {
+          clearInterval(npActivePollTimer); npActivePollTimer = null;
+          if (npDialogVisible) {
             hideNpJobIndicator();
-            setNpStatus((npLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + (failedRun ? failedRun.conclusion : 'unknown'));
+            var secs = 3;
+            setNpStatus((lang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (lang === 'en' ? 's…' : ' sek…'));
+            var cdTimer = setInterval(function() {
+              secs--;
+              if (secs <= 0) { clearInterval(cdTimer); navToNewPage(); return; }
+              setNpStatus((lang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (lang === 'en' ? 's…' : ' sek…'));
+            }, 1000);
+          } else {
+            var indicator = document.getElementById('np-job-indicator');
+            if (indicator) {
+              indicator.innerHTML = '<a href="' + npNewPageUrl + '" style="color:#9de; display:flex; align-items:center; gap:7px; text-decoration:none;"><i class="fa fa-check-circle" style="font-size:12px;"></i><span>' + (lang === 'en' ? 'New page ready – click to open' : 'Ny side klar – klikk for å åpne') + '</span></a>';
+            }
           }
-        })
-        .catch(function() {
-          setNpStatus((npLang === 'en' ? 'Checking… (' : 'Sjekker… (') + elapsed + 's)');
-        });
-    }, 5000);
+        },
+        function onError(reason) {
+          clearInterval(npActivePollTimer); npActivePollTimer = null;
+          hideNpJobIndicator();
+          setNpStatus((lang === 'en' ? '⚠ Deploy ended: ' : '⚠ Deploy avsluttet: ') + reason);
+        },
+        function onStatus(msg) { setNpStatus(msg); }
+      );
+    });
   }
 
   function showMsg(type, text) {
@@ -836,73 +843,43 @@ function loadTiptap(callback) {
   }
 
   function pollBuild(startTime) {
-    var token = getStoredToken();
-    var h = { 'Accept': 'application/vnd.github+json' };
-    if (token) h['Authorization'] = 'token ' + token;
-    var elapsed = 0;
-
-    activePollTimer = setInterval(function() {
-      elapsed += 5;
-      var statusEl = document.getElementById('del-build-status-text');
-      if (!statusEl) { clearInterval(activePollTimer); return; }
-
-      fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h })
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          if (!data.workflow_runs || !data.workflow_runs.length) {
-            statusEl.textContent = (delLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
-            return;
-          }
-          var run = null;
-          for (var i = 0; i < data.workflow_runs.length; i++) {
-            if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) {
-              run = data.workflow_runs[i]; break;
-            }
-          }
-          if (!run) {
-            statusEl.textContent = (delLang === 'en' ? 'Waiting for build to start… (' : 'Bygging av nettstedet starter om litt… (') + elapsed + 's)';
-            return;
-          }
-          if (run.status === 'queued' || run.status === 'in_progress') {
-            statusEl.textContent = (delLang === 'en'
-              ? 'Building site – expected ~1 min – ' + elapsed + 's so far'
-              : 'Bygging av nettstedet pågår – forventet ~1 min – ' + elapsed + ' sek så langt');
-          } else if (run.status === 'completed') {
-            clearInterval(activePollTimer);
-            activePollTimer = null;
-            var doneBtn = document.getElementById('del-panel-done');
-            if (run.conclusion === 'success') {
-              hideJobIndicator();
-              if (doneBtn) doneBtn.style.display = 'inline-block';
-              var secs = 3;
-              statusEl.textContent = (delLang === 'en' ? '✓ Done! Navigating in ' : '✓ Ferdig! Navigerer om ') + secs + (delLang === 'en' ? 's…' : ' sek…');
-              var cdTimer = setInterval(function() {
-                secs--;
-                if (secs <= 0) {
-                  clearInterval(cdTimer);
-                  navAfterDelete();
-                  return;
-                }
-                var el = document.getElementById('del-build-status-text');
-                if (el) el.textContent = (delLang === 'en' ? '✓ Done! Navigating in ' : '✓ Ferdig! Navigerer om ') + secs + (delLang === 'en' ? 's…' : ' sek…');
-              }, 1000);
-            } else {
-              hideJobIndicator();
-              statusEl.textContent = (delLang === 'en' ? '⚠ Build ended: ' : '⚠ Byggejobben avsluttet: ') + run.conclusion;
-              if (doneBtn) doneBtn.style.display = 'inline-block';
-            }
-          }
-        })
-        .catch(function() {
-          statusEl.textContent = (delLang === 'en' ? 'Checking… (' : 'Sjekker… (') + elapsed + 's)';
-        });
-    }, 5000);
-
+    var lang = delLang;
     document.getElementById('del-panel-done').onclick = function() {
       clearInterval(activePollTimer); activePollTimer = null;
       hideJobIndicator();
       navAfterDelete();
     };
+    ensureCfToken(function() {
+      activePollTimer = startCfPoll(startTime,
+        function onDone() {
+          clearInterval(activePollTimer); activePollTimer = null;
+          hideJobIndicator();
+          var doneBtn = document.getElementById('del-panel-done');
+          if (doneBtn) doneBtn.style.display = 'inline-block';
+          var secs = 3;
+          var statusEl = document.getElementById('del-build-status-text');
+          if (statusEl) statusEl.textContent = (lang === 'en' ? '✓ Done! Navigating in ' : '✓ Ferdig! Navigerer om ') + secs + (lang === 'en' ? 's…' : ' sek…');
+          var cdTimer = setInterval(function() {
+            secs--;
+            if (secs <= 0) { clearInterval(cdTimer); navAfterDelete(); return; }
+            var el = document.getElementById('del-build-status-text');
+            if (el) el.textContent = (lang === 'en' ? '✓ Done! Navigating in ' : '✓ Ferdig! Navigerer om ') + secs + (lang === 'en' ? 's…' : ' sek…');
+          }, 1000);
+        },
+        function onError(reason) {
+          clearInterval(activePollTimer); activePollTimer = null;
+          hideJobIndicator();
+          var statusEl = document.getElementById('del-build-status-text');
+          if (statusEl) statusEl.textContent = (lang === 'en' ? '⚠ Deploy ended: ' : '⚠ Deploy avsluttet: ') + reason;
+          var doneBtn = document.getElementById('del-panel-done');
+          if (doneBtn) doneBtn.style.display = 'inline-block';
+        },
+        function onStatus(msg) {
+          var statusEl = document.getElementById('del-build-status-text');
+          if (statusEl) statusEl.textContent = msg;
+        }
+      );
+    });
   }
 })();
 
@@ -1159,7 +1136,7 @@ function loadTiptap(callback) {
         setStatus(qeLang === 'en' ? 'Saved! Building…' : 'Lagret! Bygger…');
         saveBtn.disabled = false;
         saveBtn.textContent = qeLang === 'en' ? 'Save' : 'Lagre';
-        qePollTimer = setInterval(function() { pollQeBuild(startTime); }, 5000);
+        pollQeBuild(startTime);
       })
       .catch(function(err) {
         setStatus('Feil: ' + err.message);
@@ -1169,33 +1146,23 @@ function loadTiptap(callback) {
   });
 
   function pollQeBuild(startTime) {
-    var token = getStoredToken();
-    var h = { 'Accept': 'application/vnd.github+json' };
-    if (token) h['Authorization'] = 'token ' + token;
-    fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (!data.workflow_runs) return;
-        var run = null;
-        for (var i = 0; i < data.workflow_runs.length; i++) {
-          if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) { run = data.workflow_runs[i]; break; }
-        }
-        if (!run) return;
-        if (run.status === 'queued' || run.status === 'in_progress') {
-          setStatus(qeLang === 'en' ? 'Building site…' : 'Bygger nettstedet…');
-        } else if (run.status === 'completed') {
+    var lang = qeLang;
+    ensureCfToken(function() {
+      qePollTimer = startCfPoll(startTime,
+        function onDone() {
           clearInterval(qePollTimer); qePollTimer = null;
-          if (run.conclusion === 'success') {
-            setStatus(qeLang === 'en' ? '✓ Done' : '✓ Ferdig');
-            var saveBtn = document.getElementById('qe-save-btn');
-            saveBtn.textContent = qeLang === 'en' ? 'Close & reload ↗' : 'Lukk og last inn ↗';
-            saveBtn.onclick = function() { window.location.href = qePermalink + '?_=' + Date.now(); };
-          } else {
-            setStatus('⚠ ' + run.conclusion);
-          }
-        }
-      })
-      .catch(function() {});
+          setStatus(lang === 'en' ? '✓ Done' : '✓ Ferdig');
+          var saveBtn = document.getElementById('qe-save-btn');
+          saveBtn.textContent = lang === 'en' ? 'Close & reload ↗' : 'Lukk og last inn ↗';
+          saveBtn.onclick = function() { window.location.href = qePermalink + '?_=' + Date.now(); };
+        },
+        function onError(reason) {
+          clearInterval(qePollTimer); qePollTimer = null;
+          setStatus('⚠ ' + reason);
+        },
+        function onStatus(msg) { setStatus(msg); }
+      );
+    });
   }
 
   function uploadQeBlobs(token, repo, dirPath, images) {
