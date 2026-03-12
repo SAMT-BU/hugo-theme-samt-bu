@@ -439,6 +439,8 @@ function loadTiptap(callback) {
     var submitBtn = document.getElementById('np-submit');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Oppretter…';
+    submitBtn.style.background = '#888';
+    submitBtn.style.cursor = 'default';
 
     var token = getStoredToken();
     if (!token) {
@@ -527,6 +529,8 @@ function loadTiptap(callback) {
       .catch(function(err) {
         showMsg('error', 'Feil: ' + err.message);
         submitBtn.disabled = false;
+        submitBtn.style.background = '';
+        submitBtn.style.cursor = '';
         submitBtn.textContent = npMode === 'child'
           ? (npLang === 'en' ? 'Create sub-chapter' : 'Opprett underkapittel')
           : (npLang === 'en' ? 'Create page' : 'Opprett side');
