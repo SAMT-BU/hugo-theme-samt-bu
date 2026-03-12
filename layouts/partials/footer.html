@@ -240,6 +240,27 @@
           hl.style.removeProperty('height');
         }
       });
+
+      // Re-apply active/parent classes based on current URL
+      // Fixes Edge caching/rendering inconsistency where Hugo-generated classes
+      // may not reflect the actual current page after navigation.
+      (function() {
+        var path = window.location.pathname;
+        if (path.slice(-1) !== '/') path += '/';
+        document.querySelectorAll('#sidebar [data-nav-id]').forEach(function(li) {
+          var id = li.getAttribute('data-nav-id');
+          if (!id) return;
+          var isActive = id === path;
+          var isParent = !isActive && id.length > 1 && path.slice(0, id.length) === id;
+          li.classList.toggle('active', isActive);
+          li.classList.toggle('parent', isParent);
+          var icon = li.querySelector(':scope > a .category-icon');
+          if (icon) {
+            icon.classList.toggle('fa-sort-down', isActive || isParent);
+            icon.classList.toggle('fa-caret-right', !isActive && !isParent);
+          }
+        });
+      })();
     })();
     </script>
 
