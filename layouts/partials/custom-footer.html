@@ -790,10 +790,7 @@ setTimeout(function() {
             setNpStatus((lang === 'en' ? '✓ Done! Navigating to new page in ' : '✓ Ferdig! Navigerer til ny side om ') + secs + (lang === 'en' ? 's…' : ' sek…'));
           }, 1000);
         } else {
-          var indicator = document.getElementById('np-job-indicator');
-          if (indicator) {
-            indicator.innerHTML = '<a href="' + npNewPageUrl + '" style="color:#9de; display:flex; align-items:center; gap:7px; text-decoration:none;"><i class="fa fa-check-circle" style="font-size:12px;"></i><span>' + (lang === 'en' ? 'New page ready – click to open' : 'Ny side klar – klikk for å åpne') + '</span></a>';
-          }
+          navToNewPage();
         }
       },
       function onError(reason) {
@@ -1373,8 +1370,8 @@ setTimeout(function() {
         }
         var navTimer = setTimeout(doNav, secs * 1000);
       } else {
-        // Dialog er lukket: erstatt spinner med klikkbar lenke
-        samtuShowDoneIndicator();
+        // Dialog er lukket: last inn siden automatisk
+        doNav();
       }
     }
 
