@@ -62,7 +62,7 @@ function doGitHubLogin(onSuccess) {
 }
 
 // Sjekk om eit bygg pågår akkurat nå – returnerer true/false via callback (best-effort)
-function checkBuildInProgress(callback) {
+function checkBuildInProgress(filePath, callback) {
   var token = getStoredToken();
   var h = { 'Accept': 'application/vnd.github+json' };
   if (token) h['Authorization'] = 'token ' + token;
@@ -70,12 +70,18 @@ function checkBuildInProgress(callback) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var run = data.workflow_runs && data.workflow_runs[0];
-      if (run && (run.status === 'in_progress' || run.status === 'queued')) {
-        var age = (Date.now() - new Date(run.created_at).getTime()) / 1000;
-        callback(age < 600);
-      } else {
-        callback(false);
-      }
+      if (!run || (run.status !== 'in_progress' && run.status !== 'queued')) { callback(false); return; }
+      var age = (Date.now() - new Date(run.created_at).getTime()) / 1000;
+      if (age >= 600) { callback(false); return; }
+      if (!filePath) { callback(true); return; }
+      // Vis kun advarsel om commit som trigget bygget berørte samme fil
+      fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/commits/' + run.head_sha, { headers: h })
+        .then(function(r) { return r.json(); })
+        .then(function(commit) {
+          var files = (commit.files || []).map(function(f) { return f.filename; });
+          callback(files.indexOf(filePath) !== -1);
+        })
+        .catch(function() { callback(true); }); // fail safe: vis advarsel
     })
     .catch(function() { callback(false); });
 }
@@ -1133,7 +1139,7 @@ setTimeout(function() {
     overlay.style.display = 'flex';
 
     // Sjekk om bygg pågår – vis advarsel (blokkerer ikke)
-    checkBuildInProgress(function(active) {
+    checkBuildInProgress(qeFilePath, function(active) {
       var w = document.getElementById('qe-build-warning');
       if (w) w.style.display = active ? 'block' : 'none';
     });
