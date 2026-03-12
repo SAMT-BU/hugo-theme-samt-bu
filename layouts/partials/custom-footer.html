@@ -469,6 +469,7 @@ setTimeout(function() {
     var submitBtn = document.getElementById('np-submit');
     submitBtn.disabled = false;
     submitBtn.textContent = npLang === 'en' ? 'Create page' : 'Opprett side';
+    document.getElementById('np-cancel').textContent = npLang === 'en' ? 'Cancel' : 'Avbryt';
 
     document.getElementById('np-dialog-title').textContent = npLang === 'en' ? 'New page – same level' : 'Ny side – samme nivå';
     setNpStatus('');
@@ -498,6 +499,7 @@ setTimeout(function() {
     var submitBtn = document.getElementById('np-submit');
     submitBtn.disabled = false;
     submitBtn.textContent = npLang === 'en' ? 'Create sub-chapter' : 'Opprett underkapittel';
+    document.getElementById('np-cancel').textContent = npLang === 'en' ? 'Cancel' : 'Avbryt';
 
     document.getElementById('np-dialog-title').textContent = npLang === 'en' ? 'New sub-chapter' : 'Nytt underkapittel';
     setNpStatus('');
@@ -753,6 +755,8 @@ setTimeout(function() {
 
   function showNpBuildPanel() {
     setNpStatus(npLang === 'en' ? 'Waiting for build to start…' : 'Bygging av nettstedet starter om litt…');
+    var cancelBtn = document.getElementById('np-cancel');
+    if (cancelBtn) cancelBtn.textContent = npLang === 'en' ? 'Close this window' : 'Lukk dette vinduet';
   }
 
   function showNpJobIndicator() {
