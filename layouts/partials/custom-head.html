@@ -531,6 +531,12 @@
   #sidebar ul ul li > a {
     padding: 2px 6px !important;
   }
+  /* Bold for active/parent items – backs up font-family:'DIN-bold' for cases where the
+     webfont is slow or fails to load, and ensures consistent rendering across browsers */
+  #sidebar ul li.parent > a,
+  #sidebar ul li.active > a {
+    font-weight: bold;
+  }
 
   /* Left sidebar heading — aligned with menu items and TOC heading */
   #sidebar .sidebar-heading {

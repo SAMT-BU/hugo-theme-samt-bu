@@ -241,10 +241,10 @@
         }
       });
 
-      // Re-apply active/parent classes based on current URL
-      // Fixes Edge caching/rendering inconsistency where Hugo-generated classes
-      // may not reflect the actual current page after navigation.
-      (function() {
+      // Re-apply active/parent classes + bold based on current URL.
+      // Runs immediately (before deferred scripts) and again via setTimeout
+      // (after deferred scripts) to handle any race conditions.
+      function applyActiveParent() {
         var path = window.location.pathname;
         if (path.slice(-1) !== '/') path += '/';
         document.querySelectorAll('#sidebar [data-nav-id]').forEach(function(li) {
@@ -254,13 +254,17 @@
           var isParent = !isActive && id.length > 1 && path.slice(0, id.length) === id;
           li.classList.toggle('active', isActive);
           li.classList.toggle('parent', isParent);
+          var a = li.querySelector(':scope > a');
+          if (a) a.style.fontWeight = (isActive || isParent) ? 'bold' : '';
           var icon = li.querySelector(':scope > a .category-icon');
           if (icon) {
             icon.classList.toggle('fa-sort-down', isActive || isParent);
             icon.classList.toggle('fa-caret-right', !isActive && !isParent);
           }
         });
-      })();
+      }
+      applyActiveParent();
+      setTimeout(applyActiveParent, 0);
     })();
     </script>
 
