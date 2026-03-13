@@ -111,7 +111,19 @@ function samtuGetPending() {
 }
 function samtuIncrementPending() {
   var p = samtuGetPending() || { count: 0 };
-  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: (p.count || 0) + 1, lastSaveAt: Date.now() })); } catch(e) {}
+  var now = Date.now();
+  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: (p.count || 0) + 1, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0 })); } catch(e) {}
+}
+function samtuDecrementPending() {
+  var p = samtuGetPending();
+  if (!p) return;
+  var newCount = (p.count || 1) - 1;
+  if (newCount <= 0) {
+    samtuClearPending();
+  } else {
+    try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: newCount, firstSaveAt: p.firstSaveAt, lastSaveAt: p.lastSaveAt, seenCompleted: (p.seenCompleted || 0) + 1 })); } catch(e) {}
+    samtuShowPendingIndicator(newCount);
+  }
 }
 function samtuClearPending() {
   try { localStorage.removeItem(SAMTU_PENDING_KEY); } catch(e) {}
@@ -220,23 +232,38 @@ function loadTiptap(callback) {
 // Pre-hent GitHub-brukernavn hvis innlogget (popuperer cache for bruk ved lagring)
 if (getStoredToken() && !localStorage.getItem('samt-bu-gh-user')) fetchCurrentUser(function() {});
 
-// Gjenopprett pending-spinner ved sideinnlasting (f.eks. etter navigering)
+// Gjenopprett pending-spinner ved sideinnlasting og tell ned per ferdig bygg
 setTimeout(function() {
   var p = samtuGetPending();
-  if (!p || !p.count || !p.lastSaveAt) return;
-  if ((Date.now() - p.lastSaveAt) > 600000) { samtuClearPending(); return; } // > 10 min – anta ferdig
+  if (!p || !p.count || !p.firstSaveAt) return;
+  if ((Date.now() - p.firstSaveAt) > 600000) { samtuClearPending(); return; } // > 10 min – anta ferdig
   samtuShowPendingIndicator(p.count);
-  // Start GitHub-poll for å rydde spinneren når bygget er ferdig (selv etter sidenavigering)
-  var resumeTimer = startGhPoll(p.lastSaveAt, function() {
-    clearInterval(resumeTimer);
-    samtuClearPending();
-    window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
-  }, function() {
-    clearInterval(resumeTimer);
-    samtuClearPending();
-    var ind = document.getElementById('qe-job-indicator');
-    if (ind) ind.style.display = 'none';
-  }, function() {});
+  var token = getStoredToken();
+  var h = { 'Accept': 'application/vnd.github+json' };
+  if (token) h['Authorization'] = 'token ' + token;
+  function checkCompletions() {
+    var p2 = samtuGetPending();
+    if (!p2 || !p2.count) { clearInterval(resumeTimer); return; }
+    fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=20', { headers: h, cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.workflow_runs) return;
+        var completed = 0;
+        for (var i = 0; i < data.workflow_runs.length; i++) {
+          var run = data.workflow_runs[i];
+          if (new Date(run.created_at).getTime() < p2.firstSaveAt - 30000) break;
+          if (run.status === 'completed' && run.conclusion === 'success') completed++;
+        }
+        if (completed > (p2.seenCompleted || 0)) {
+          clearInterval(resumeTimer);
+          samtuDecrementPending();
+          window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
+        }
+      })
+      .catch(function() {});
+  }
+  checkCompletions();
+  var resumeTimer = setInterval(checkCompletions, 3000);
 }, 200);
 </script>
 
@@ -1334,7 +1361,7 @@ setTimeout(function() {
 
     function onBuildDone() {
       clearInterval(qePollTimer); qePollTimer = null;
-      samtuClearPending();
+      samtuDecrementPending();
       if (overlay.style.display !== 'none') {
         // Dialog er åpen: tell ned og last inn automatisk
         var secs = 2;
@@ -1446,9 +1473,9 @@ setTimeout(function() {
           knownEtag = newEtag;
           clearInterval(bgTimer);
           if (p && p.count) {
-            // Egne ventende endringer – vis «ferdig»-indikator
-            samtuClearPending();
-            samtuShowDoneIndicator();
+            // Egne ventende endringer – dekrement og last inn
+            samtuDecrementPending();
+            window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
           } else {
             // Andres endring – vis generelt oppdateringsbanner
             var banner = document.getElementById('page-update-banner');
