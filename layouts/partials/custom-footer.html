@@ -1284,6 +1284,30 @@ setTimeout(function() {
       .then(function(r) { qeOldEtag = r.headers.get('etag') || r.headers.get('last-modified') || null; })
       .catch(function() {});
 
+    var lastBlobItems = [];
+
+    function onSaveSuccess() {
+      setStatus(qeLang === 'en' ? 'Saved! Updating site…' : 'Lagret! Nettstedet oppdateres…');
+      saveBtn.disabled = true;
+      saveBtn.textContent = qeLang === 'en' ? 'Saved' : 'Lagret';
+      saveBtn.style.background = '#888';
+      saveBtn.style.cursor = 'default';
+      var cancelBtn = document.getElementById('qe-cancel-btn');
+      if (cancelBtn) cancelBtn.textContent = qeLang === 'en' ? 'Close this window' : 'Lukk dette vinduet';
+      var w = document.getElementById('qe-build-warning');
+      if (w) w.style.display = 'none';
+      samtuIncrementPending();
+      pollQeBuild(startTime, qeOldEtag);
+    }
+
+    function onSaveFinalError() {
+      saveBtn.disabled = false;
+      saveBtn.style.background = '';
+      saveBtn.style.cursor = '';
+      saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
+      setStatus('⚠ ' + (qeLang === 'en' ? 'Save failed. Try again.' : 'Lagring feilet. Prøv igjen.'));
+    }
+
     function tryCommit(blobItems, attemptsLeft) {
       return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg)
         .catch(function(err) {
@@ -1297,20 +1321,8 @@ setTimeout(function() {
     }
 
     uploadQeBlobs(token, qeRepo, imgDir, qeImages)
-      .then(function(blobItems) { return tryCommit(blobItems, 5); })
-      .then(function() {
-        setStatus(qeLang === 'en' ? 'Saved! Updating site…' : 'Lagret! Nettstedet oppdateres…');
-        saveBtn.disabled = true;
-        saveBtn.textContent = qeLang === 'en' ? 'Saved' : 'Lagret';
-        saveBtn.style.background = '#888';
-        saveBtn.style.cursor = 'default';
-        var cancelBtn = document.getElementById('qe-cancel-btn');
-        if (cancelBtn) cancelBtn.textContent = qeLang === 'en' ? 'Close this window' : 'Lukk dette vinduet';
-        var w = document.getElementById('qe-build-warning');
-        if (w) w.style.display = 'none';
-        samtuIncrementPending();
-        pollQeBuild(startTime, qeOldEtag);
-      })
+      .then(function(blobItems) { lastBlobItems = blobItems; return tryCommit(blobItems, 5); })
+      .then(onSaveSuccess)
       .catch(function(err) {
         if (err.message !== 'Update is not a fast forward') {
           saveBtn.disabled = false;
@@ -1328,22 +1340,22 @@ setTimeout(function() {
           .then(function(commits) {
             var login = commits && commits[0] && commits[0].author && commits[0].author.login;
             var isHuman = login && login !== 'github-actions[bot]';
-            var msg = isHuman
-              ? (qeLang === 'en' ? 'Conflict: page changed by @' + login + '. Try again.' : 'Konflikt: siden ble endret av @' + login + '. Prøv igjen.')
-              : (qeLang === 'en' ? 'Save failed. Try again.' : 'Lagring feilet. Prøv igjen.');
-            saveBtn.disabled = false;
-            saveBtn.style.background = '';
-            saveBtn.style.cursor = '';
-            saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
-            setStatus('⚠ ' + msg);
+            if (isHuman) {
+              // Ekte konflikt – vis hvem som endret siden
+              saveBtn.disabled = false;
+              saveBtn.style.background = '';
+              saveBtn.style.cursor = '';
+              saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
+              setStatus('⚠ ' + (qeLang === 'en' ? 'Conflict: page changed by @' + login + '. Try again.' : 'Konflikt: siden ble endret av @' + login + '. Prøv igjen.'));
+            } else {
+              // Bot-commit (UUID-steg i bygg) – auto-retry etter at bygget har roet seg
+              setStatus(qeLang === 'en' ? 'Build in progress – retrying…' : 'Bygg pågår – prøver igjen…');
+              setTimeout(function() {
+                tryCommit(lastBlobItems, 5).then(onSaveSuccess).catch(onSaveFinalError);
+              }, 8000);
+            }
           })
-          .catch(function() {
-            saveBtn.disabled = false;
-            saveBtn.style.background = '';
-            saveBtn.style.cursor = '';
-            saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
-            setStatus('⚠ ' + (qeLang === 'en' ? 'Save failed. Try again.' : 'Lagring feilet. Prøv igjen.'));
-          });
+          .catch(onSaveFinalError);
       });
   });
 
