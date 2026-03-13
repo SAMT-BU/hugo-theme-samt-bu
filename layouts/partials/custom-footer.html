@@ -1298,15 +1298,29 @@ setTimeout(function() {
       pollQeBuild(startTime, qeOldEtag);
     }
 
+    function tryCommit(blobItems, deadline) {
+      return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg)
+        .catch(function(err) {
+          if (err.message === 'Update is not a fast forward' && Date.now() < deadline) {
+            if (overlay.style.display !== 'none') setStatus(qeLang === 'en' ? 'Retrying…' : 'Prøver på nytt…');
+            return new Promise(function(res) { setTimeout(res, 2000); })
+              .then(function() { return tryCommit(blobItems, deadline); });
+          }
+          throw err;
+        });
+    }
+
     uploadQeBlobs(token, qeRepo, imgDir, qeImages)
-      .then(function(blobItems) { return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg); })
+      .then(function(blobItems) { return tryCommit(blobItems, Date.now() + 120000); })
       .then(onSaveSuccess)
       .catch(function(err) {
-        saveBtn.disabled = false;
-        saveBtn.style.background = '';
-        saveBtn.style.cursor = '';
-        saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
-        setStatus('⚠ ' + err.message);
+        if (overlay.style.display !== 'none') {
+          saveBtn.disabled = false;
+          saveBtn.style.background = '';
+          saveBtn.style.cursor = '';
+          saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
+          setStatus('⚠ ' + err.message);
+        }
       });
   });
 
