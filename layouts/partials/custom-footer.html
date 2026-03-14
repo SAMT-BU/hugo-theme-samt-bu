@@ -112,7 +112,8 @@ function samtuGetPending() {
 function samtuIncrementPending() {
   var p = samtuGetPending() || { count: 0 };
   var now = Date.now();
-  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: (p.count || 0) + 1, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0 })); } catch(e) {}
+  var actor = localStorage.getItem('samt-bu-gh-user') || '';
+  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: (p.count || 0) + 1, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0, actor: p.actor || actor })); } catch(e) {}
 }
 function samtuDecrementPending() {
   var p = samtuGetPending();
@@ -129,13 +130,19 @@ function samtuClearPending() {
   try { localStorage.removeItem(SAMTU_PENDING_KEY); } catch(e) {}
 }
 function samtuShowPendingIndicator(count) {
+  samtuShowPendingIndicatorWithTotal(count, null);
+}
+function samtuShowPendingIndicatorWithTotal(count, totalActive) {
   var ind = document.getElementById('qe-job-indicator');
   if (!ind) return;
   var isEn = document.documentElement.lang === 'en';
   var label = count === 1
     ? (isEn ? '1 change building\u2026' : '1 endring bygges\u2026')
     : (isEn ? count + ' changes building\u2026' : count + ' endringer bygges\u2026');
-  ind.innerHTML = '<i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i><span style="margin-left:7px;">' + label + '</span>';
+  var totalSuffix = (totalActive !== null && totalActive > count)
+    ? ' <span style="opacity:.6;">(' + (isEn ? totalActive + ' total' : totalActive + ' totalt') + ')</span>'
+    : '';
+  ind.innerHTML = '<i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i><span style="margin-left:7px;">' + label + totalSuffix + '</span>';
   ind.style.display = 'flex';
 }
 function samtuShowDoneIndicator() {
@@ -248,13 +255,20 @@ setTimeout(function() {
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data.workflow_runs) return;
-        var completed = 0;
+        var myCompleted = 0, totalActive = 0;
         for (var i = 0; i < data.workflow_runs.length; i++) {
           var run = data.workflow_runs[i];
           if (new Date(run.created_at).getTime() < p2.firstSaveAt - 30000) break;
-          if (run.status === 'completed' && run.conclusion === 'success') completed++;
+          var isMine = !p2.actor || (run.triggering_actor && run.triggering_actor.login === p2.actor);
+          if (run.status === 'completed' && run.conclusion === 'success') {
+            if (isMine) myCompleted++;
+          } else if (run.status === 'queued' || run.status === 'in_progress') {
+            totalActive++;
+          }
         }
-        if (completed > (p2.seenCompleted || 0)) {
+        // Oppdater indikator med totalteller for alle aktive bygg
+        samtuShowPendingIndicatorWithTotal(p2.count, totalActive);
+        if (myCompleted > (p2.seenCompleted || 0)) {
           clearInterval(resumeTimer);
           samtuDecrementPending();
           window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
