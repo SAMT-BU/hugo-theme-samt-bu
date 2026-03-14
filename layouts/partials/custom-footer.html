@@ -207,14 +207,14 @@ function loadTiptap(callback) {
   }
   window._tiptapLoading = true;
   Promise.all([
-    import('https://esm.sh/@tiptap/core@2'),
-    import('https://esm.sh/@tiptap/starter-kit@2'),
-    import('https://esm.sh/@tiptap/extension-table@2'),
-    import('https://esm.sh/@tiptap/extension-table-row@2'),
-    import('https://esm.sh/@tiptap/extension-table-cell@2'),
-    import('https://esm.sh/@tiptap/extension-table-header@2'),
-    import('https://esm.sh/@tiptap/extension-link@2'),
-    import('https://esm.sh/@tiptap/extension-image@2'),
+    import('https://esm.sh/@tiptap/core@2.26.0'),
+    import('https://esm.sh/@tiptap/starter-kit@2.26.0'),
+    import('https://esm.sh/@tiptap/extension-table@2.26.0'),
+    import('https://esm.sh/@tiptap/extension-table-row@2.26.0'),
+    import('https://esm.sh/@tiptap/extension-table-cell@2.26.0'),
+    import('https://esm.sh/@tiptap/extension-table-header@2.26.0'),
+    import('https://esm.sh/@tiptap/extension-link@2.26.0'),
+    import('https://esm.sh/@tiptap/extension-image@2.26.0'),
     import('https://esm.sh/tiptap-markdown@0.8.10')
   ]).then(function(mods) {
     window._Tiptap = {
