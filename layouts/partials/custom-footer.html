@@ -506,7 +506,7 @@ setTimeout(function() {
     document.getElementById('np-form').reset();
     document.getElementById('np-status').value = 'Ny';
     if (currentWeight) {
-      document.getElementById('np-weight').value = currentWeight + 1;
+      document.getElementById('np-weight').value = currentWeight + 10;
     }
     hideMsg();
     var submitBtn = document.getElementById('np-submit');
@@ -714,7 +714,7 @@ setTimeout(function() {
           if (!match) return;
           var w = parseInt(match[1], 10);
           if (w < minWeight) return;
-          updates.push({ path: item.path, content: content.replace(/^(weight:\s*)\d+/m, '$1' + (w + 1)) });
+          updates.push({ path: item.path, content: content.replace(/^(weight:\s*)\d+/m, '$1' + (w + 10)) });
         });
         return updates;
       });
