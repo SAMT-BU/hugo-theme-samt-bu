@@ -210,7 +210,7 @@
     </div>
   </div>
   <div style="background:#f0f4f8; border-bottom:1px solid #d0d8e8; flex-shrink:0;">
-    <form id="np-form" onsubmit="return false;" style="max-width:960px; width:100%; margin:0 auto; padding:.55rem 1.5rem; display:flex; gap:1.4rem; align-items:flex-end; flex-wrap:wrap;">
+    <form id="np-form" onsubmit="return false;" style="max-width:960px; width:100%; margin:0 auto; padding:.55rem 1.5rem; display:flex; gap:1.4rem; align-items:flex-start; flex-wrap:wrap;">
       <div style="display:flex; flex-direction:column; gap:.2rem;">
         <label for="np-title-nb" style="font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:.05em;">{{ cond (eq $lang "en") "Title" "Tittel" }} <span style="color:#c00;">*</span></label>
         <input id="np-title-nb" type="text" autocomplete="off" style="width:260px;">
@@ -225,7 +225,7 @@
       </div>
       <div style="display:flex; flex-direction:column; gap:.2rem;">
         <label for="np-status" style="font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:.05em;">Status</label>
-        <select id="np-status" style="background:#fff;">
+        <select id="np-status" style="background:#fff; width:130px;">
           <option value="">–</option>
           <option value="Ny" selected>Ny</option>
           <option value="Tidlig utkast">Tidlig utkast</option>
@@ -318,7 +318,7 @@
     ⚠ {{ cond (eq $lang "en") "A build is currently in progress. Saving may cause a conflict — wait until the build is done." "Et bygg pågår akkurat nå. Lagring kan føre til konflikt – vent til bygget er ferdig." }}
   </div>
   <div id="qe-meta-panel" style="background:#f0f4f8; border-bottom:1px solid #d0d8e8; flex-shrink:0;">
-    <div style="max-width:960px; width:100%; margin:0 auto; padding:.55rem 1.5rem; display:flex; gap:1.4rem; align-items:flex-end; flex-wrap:wrap;">
+    <div style="max-width:960px; width:100%; margin:0 auto; padding:.55rem 1.5rem; display:flex; gap:1.4rem; align-items:flex-start; flex-wrap:wrap;">
       <div style="display:flex; flex-direction:column; gap:.2rem;">
         <label for="qe-field-title" style="font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:.05em;">{{ cond (eq $lang "en") "Title" "Tittel" }}</label>
         <input id="qe-field-title" type="text" style="width:260px;">
@@ -333,9 +333,12 @@
       </div>
       <div style="display:flex; flex-direction:column; gap:.2rem;">
         <label for="qe-field-status" style="font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:.05em;">Status</label>
-        <select id="qe-field-status" style="background:#fff;"></select>
+        <select id="qe-field-status" style="background:#fff; width:130px;"></select>
       </div>
-      <label style="display:flex; align-items:center; gap:.4rem; font-size:13px; color:#555; padding-bottom:.3rem; cursor:pointer;"><input id="qe-field-hidetoc" type="checkbox" style="margin:0;"> {{ cond (eq $lang "en") "Hide TOC" "Skjul innholdsfortegnelse" }}</label>
+      <div style="display:flex; flex-direction:column; gap:.2rem;">
+        <span style="font-size:11px; font-weight:600; color:transparent; user-select:none; pointer-events:none;">–</span>
+        <label style="display:flex; align-items:center; gap:.4rem; font-size:13px; color:#555; height:2rem; cursor:pointer;"><input id="qe-field-hidetoc" type="checkbox" style="margin:0;"> {{ cond (eq $lang "en") "Hide TOC" "Skjul innholdsfortegnelse" }}</label>
+      </div>
     </div>
   </div>
   <div id="qe-editor-area" style="flex:1; display:flex; flex-direction:column; max-width:960px; width:100%; margin:0 auto; min-height:0;">
