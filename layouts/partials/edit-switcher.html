@@ -281,9 +281,11 @@
     line-height: 1.2;
     vertical-align: middle;
   }
-  /* select sentrerer ikke tekst med line-height:1.2 – bruk normal */
+  /* select: fjern eksplisitt height – la padding styre størrelsen slik at tekst sentreres naturlig */
   #qe-meta-panel select,
   #np-form select {
+    height: auto;
+    padding: .35rem .5rem;
     line-height: normal;
   }
   /* qe-dialog og np-dialog: full-høyde editor */
