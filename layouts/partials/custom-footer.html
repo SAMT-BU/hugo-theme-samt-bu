@@ -157,6 +157,27 @@ function samtuShowDoneIndicator() {
   ind.style.display = 'flex';
 }
 
+// Lydsignal ved ferdig bygg – beep (Web Audio) + tale (Web Speech)
+function samtuPlaySuccess() {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch(e) {}
+  try {
+    var u = new SpeechSynthesisUtterance('Build job complete');
+    u.lang = 'en-US';
+    window.speechSynthesis.speak(u);
+  } catch(e) {}
+}
+
 // Poll GitHub Actions workflow – brukes for rediger og slett (2s intervall)
 function startGhPoll(startTime, onDone, onError, onStatus) {
   var token = getStoredToken();
@@ -177,7 +198,7 @@ function startGhPoll(startTime, onDone, onError, onStatus) {
         if (run.status === 'queued' || run.status === 'in_progress') {
           onStatus('Bygger…');
         } else if (run.status === 'completed') {
-          if (run.conclusion === 'success') onDone();
+          if (run.conclusion === 'success') { samtuPlaySuccess(); onDone(); }
           else onError(run.conclusion);
         }
       })
@@ -193,7 +214,7 @@ function startUrlPoll(url, onDone, onError, onStatus) {
     fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(),
           { method: 'HEAD', cache: 'no-store' })
       .then(function(r) {
-        if (r.ok) onDone();
+        if (r.ok) { samtuPlaySuccess(); onDone(); }
         else onStatus(attempts);
       })
       .catch(function() { onStatus('Venter…'); });
