@@ -281,6 +281,11 @@
     line-height: 1.2;
     vertical-align: middle;
   }
+  /* select sentrerer ikke tekst med line-height:1.2 – bruk normal */
+  #qe-meta-panel select,
+  #np-form select {
+    line-height: normal;
+  }
   /* qe-dialog og np-dialog: full-høyde editor */
   #qe-body-pm { flex:1; overflow-y:auto; min-height:0; }
   #qe-body-pm .ProseMirror { padding:1.5rem; min-height:100%; outline:none; font-size:15px; line-height:1.65; }
