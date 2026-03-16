@@ -1459,13 +1459,14 @@ setTimeout(function() {
     }
 
     if (oldEtag) {
+      samtuPlayStart();
       // ETag-deteksjon: vent til Cloudflare serverer ny versjon (same-origin HEAD-poll)
       qePollTimer = setInterval(function() {
-        if (++attempts > 90) { clearInterval(qePollTimer); qePollTimer = null; setStatus('⚠ Tidsavbrudd'); return; }
+        if (++attempts > 90) { clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); return; }
         fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
           .then(function(r) {
             var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
-            if (r.ok && newEtag && newEtag !== oldEtag) onBuildDone();
+            if (r.ok && newEtag && newEtag !== oldEtag) { samtuPlaySuccess(); onBuildDone(); }
             else setStatus(lang === 'en' ? 'Updating site (' + attempts + 's)…' : 'Nettsted oppdateres (' + attempts + ' sek)…');
           })
           .catch(function() { setStatus('Venter…'); });
