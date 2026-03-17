@@ -115,7 +115,9 @@ function samtuIncrementPending() {
   var p = samtuGetPending() || { count: 0 };
   var now = Date.now();
   var actor = localStorage.getItem('samt-bu-gh-user') || '';
-  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: (p.count || 0) + 1, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0, actor: p.actor || actor })); } catch(e) {}
+  var newCount = (p.count || 0) + 1;
+  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: newCount, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0, actor: p.actor || actor })); } catch(e) {}
+  samtuShowPendingIndicator(newCount);
 }
 function samtuDecrementPending() {
   var p = samtuGetPending();
