@@ -1710,13 +1710,20 @@ setTimeout(function() {
 
 // Jobbhistorikk-dialog
 (function() {
-  var indicator = document.getElementById('qe-job-indicator');
-  var dialog    = document.getElementById('job-history-dialog');
-  var listEl    = document.getElementById('job-history-list');
-  var closeBtn  = document.getElementById('job-history-close');
+  var indicator  = document.getElementById('qe-job-indicator');
+  var dialog     = document.getElementById('job-history-dialog');
+  var listEl     = document.getElementById('job-history-list');
+  var closeBtn   = document.getElementById('job-history-close');
+  var tabMineBtn = document.getElementById('job-history-tab-mine');
+  var tabAllBtn  = document.getElementById('job-history-tab-all');
   if (!indicator || !dialog || !listEl || !closeBtn) return;
 
   var isEn = document.documentElement.lang === 'en';
+  var _historyMode = 'mine';
+  var _historyRuns = null;
+  var _historyLiveTimer = null;
+  var _historyFetchTimer = null;
+  var _userNameCache = {}; // login -> display name string or null
 
   function timeAgo(dateStr) {
     var secs = Math.round((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -1739,19 +1746,53 @@ setTimeout(function() {
     return '<i class="fa fa-exclamation-circle" style="color:#e07070;"></i>';
   }
 
-  var _historyRuns = null;
-  var _historyLiveTimer = null;
-  var _historyFetchTimer = null;
+  function actorLabel(login) {
+    if (login in _userNameCache && _userNameCache[login])
+      return login + ' (' + _userNameCache[login] + ')';
+    return login;
+  }
+
+  function fetchUserName(login) {
+    if (login in _userNameCache) return; // already fetching or fetched
+    _userNameCache[login] = null; // mark as in-flight
+    var token = getStoredToken();
+    var headers = { 'Accept': 'application/vnd.github+json' };
+    if (token) headers['Authorization'] = 'token ' + token;
+    fetch('https://api.github.com/users/' + encodeURIComponent(login), { headers: headers, cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        _userNameCache[login] = data.name || null;
+        if (_historyRuns) renderHistory(_historyRuns);
+      })
+      .catch(function() { _userNameCache[login] = null; });
+  }
+
+  function setTab(mode) {
+    _historyMode = mode;
+    if (tabMineBtn && tabAllBtn) {
+      if (mode === 'mine') {
+        tabMineBtn.style.color = '#e8e8e8'; tabMineBtn.style.borderBottomColor = '#7ec8e3';
+        tabAllBtn.style.color  = '#777';    tabAllBtn.style.borderBottomColor  = 'transparent';
+      } else {
+        tabAllBtn.style.color  = '#e8e8e8'; tabAllBtn.style.borderBottomColor  = '#7ec8e3';
+        tabMineBtn.style.color = '#777';    tabMineBtn.style.borderBottomColor = 'transparent';
+      }
+    }
+  }
 
   function renderHistory(runs) {
     if (!runs.length) {
       listEl.innerHTML = '<div style="padding:10px 14px; opacity:.6;">' + (isEn ? 'No jobs found.' : 'Ingen jobber funnet.') + '</div>';
       return;
     }
+    var showActor = (_historyMode === 'all');
     var html = '';
     runs.forEach(function(run) {
+      var login = run.triggering_actor && run.triggering_actor.login;
+      if (showActor && login) fetchUserName(login);
       var msg = run.display_title || run.name || '\u2013';
-      if (msg.length > 58) msg = msg.slice(0, 57) + '\u2026';
+      var maxLen = showActor ? 52 : 58;
+      if (msg.length > maxLen) msg = msg.slice(0, maxLen - 1) + '\u2026';
       var time;
       if (run.status === 'queued' || run.status === 'waiting' || run.status === 'pending' || run.status === 'requested') {
         time = isEn ? 'In queue' : 'I k\u00f8';
@@ -1763,11 +1804,16 @@ setTimeout(function() {
       } else {
         time = timeAgo(run.updated_at);
       }
-      html += '<div style="display:flex; align-items:center; gap:9px; padding:7px 12px; border-bottom:1px solid rgba(255,255,255,.06);">';
-      html += '<span style="flex-shrink:0; width:14px; text-align:center;">' + statusIcon(run) + '</span>';
-      html += '<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + msg + '</span>';
-      html += '<span style="opacity:.5; font-size:12px; flex-shrink:0; white-space:nowrap; margin-left:6px;">' + time + '</span>';
-      html += '<a href="' + run.html_url + '" target="_blank" rel="noopener" title="' + (isEn ? 'Open in GitHub' : '\u00c5pne i GitHub') + '" style="color:#7ec8e3; text-decoration:none; flex-shrink:0; font-size:12px; opacity:.75; margin-left:4px;" onclick="event.stopPropagation();">\u2197</a>';
+      html += '<div style="display:flex; align-items:flex-start; gap:9px; padding:6px 12px; border-bottom:1px solid rgba(255,255,255,.06);">';
+      html += '<span style="flex-shrink:0; width:14px; text-align:center; margin-top:2px;">' + statusIcon(run) + '</span>';
+      html += '<span style="flex:1; min-width:0; overflow:hidden;">';
+      html += '<span style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + msg + '</span>';
+      if (showActor && login) {
+        html += '<span style="display:block; font-size:11px; opacity:.45; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + actorLabel(login) + '</span>';
+      }
+      html += '</span>';
+      html += '<span style="opacity:.5; font-size:12px; flex-shrink:0; white-space:nowrap; margin-left:6px; padding-top:2px;">' + time + '</span>';
+      html += '<a href="' + run.html_url + '" target="_blank" rel="noopener" title="' + (isEn ? 'Open in GitHub' : '\u00c5pne i GitHub') + '" style="color:#7ec8e3; text-decoration:none; flex-shrink:0; font-size:12px; opacity:.75; margin-left:4px; padding-top:2px;" onclick="event.stopPropagation();">\u2197</a>';
       html += '</div>';
     });
     listEl.innerHTML = html;
@@ -1779,8 +1825,8 @@ setTimeout(function() {
     }
     var token = getStoredToken();
     var login = localStorage.getItem('samt-bu-gh-user');
-    var url   = 'https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=15';
-    if (login) url += '&actor=' + encodeURIComponent(login);
+    var url = 'https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=15';
+    if (_historyMode === 'mine' && login) url += '&actor=' + encodeURIComponent(login);
     var headers = { 'Accept': 'application/vnd.github+json' };
     if (token) headers['Authorization'] = 'token ' + token;
     fetch(url, { headers: headers, cache: 'no-store' })
@@ -1810,6 +1856,13 @@ setTimeout(function() {
     _historyLiveTimer = null;
     _historyFetchTimer = null;
   }
+
+  if (tabMineBtn) tabMineBtn.addEventListener('click', function() {
+    if (_historyMode !== 'mine') { setTab('mine'); _historyRuns = null; fetchHistory(); }
+  });
+  if (tabAllBtn) tabAllBtn.addEventListener('click', function() {
+    if (_historyMode !== 'all') { setTab('all'); _historyRuns = null; fetchHistory(); }
+  });
 
   indicator.addEventListener('click', function(e) {
     // Ikke åpne dialog hvis klikket var på en lenke inne i indikatoren (f.eks. samtuShowDoneIndicator)
