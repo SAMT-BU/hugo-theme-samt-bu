@@ -1000,8 +1000,8 @@ setTimeout(function() {
     } else {
       warningEl.style.display = 'none';
       footnoteEl.textContent = lang === 'en'
-        ? 'Both language versions (nb + en) will be deleted. This cannot be undone.'
-        : 'Begge språkversjoner (nb + en) slettes. Dette kan ikke angres.';
+        ? 'Both language versions (nb + en) will be deleted. This cannot be undone via the website \u2014 but the content can be restored from the GitHub commit history by an administrator.'
+        : 'Begge språkversjoner (nb + en) slettes. Dette kan ikke angres via nettstedet \u2014 men innholdet kan gjenopprettes fra GitHub-historikken av en administrator.';
       document.getElementById('del-confirm-btn').textContent = lang === 'en' ? 'Delete page' : 'Slett siden';
     }
     document.getElementById('del-confirm-btn').disabled = false;
@@ -1038,8 +1038,8 @@ setTimeout(function() {
     document.getElementById('del-s2-title').textContent =
       lang === 'en' ? 'Are you absolutely sure?' : 'Er du helt sikker?';
     document.getElementById('del-s2-text').textContent = lang === 'en'
-      ? 'You are about to delete \u201c' + delTitle + '\u201d and all ' + subLabel + '. This cannot be undone. Note: we have not checked whether other pages link to any of the pages being deleted \u2014 such links will break.'
-      : 'Du er i ferd med å slette \u00ab' + delTitle + '\u00bb og alle ' + subLabel + '. Dette kan ikke angres. Merk: vi har ikke sjekket om andre sider lenker til noen av sidene som slettes \u2014 slike lenker vil da bli brutte.';
+      ? 'You are about to delete \u201c' + delTitle + '\u201d and all ' + subLabel + '. This cannot be undone via the website (but can be restored from the GitHub commit history by an administrator). Note: we have not checked whether other pages link to any of the pages being deleted \u2014 such links will break.'
+      : 'Du er i ferd med å slette \u00ab' + delTitle + '\u00bb og alle ' + subLabel + '. Dette kan ikke angres via nettstedet (men kan gjenopprettes fra GitHub-commit-historikken av en administrator). Merk: vi har ikke sjekket om andre sider lenker til noen av sidene som slettes \u2014 slike lenker vil da bli brutte.';
     document.getElementById('del-back-btn').textContent = lang === 'en' ? '\u2190 Back' : '\u2190 Tilbake';
     document.getElementById('del-final-btn').textContent = lang === 'en' ? 'Yes, delete permanently' : 'Ja, slett alt permanent';
     document.getElementById('del-final-btn').disabled = false;
