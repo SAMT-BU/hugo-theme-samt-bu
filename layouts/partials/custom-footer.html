@@ -1772,4 +1772,92 @@ setTimeout(function() {
     if (overlay) applyState(overlay);
   };
 })();
+
+// Jobbhistorikk-dialog
+(function() {
+  var indicator = document.getElementById('qe-job-indicator');
+  var dialog    = document.getElementById('job-history-dialog');
+  var listEl    = document.getElementById('job-history-list');
+  var closeBtn  = document.getElementById('job-history-close');
+  if (!indicator || !dialog || !listEl || !closeBtn) return;
+
+  var isEn = document.documentElement.lang === 'en';
+
+  function timeAgo(dateStr) {
+    var secs = Math.round((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (secs < 5)    return isEn ? 'just now'      : 'akkurat nå';
+    if (secs < 60)   return secs + (isEn ? ' s ago'   : ' sek siden');
+    if (secs < 3600) return Math.floor(secs / 60)   + (isEn ? ' min ago'  : ' min siden');
+    if (secs < 86400)return Math.floor(secs / 3600)  + (isEn ? ' h ago'   : ' t siden');
+    return Math.floor(secs / 86400) + (isEn ? ' d ago' : ' d siden');
+  }
+
+  function statusIcon(run) {
+    if (run.status === 'in_progress' || run.status === 'queued')
+      return '<i class="fa fa-spinner fa-spin" style="color:#7ec8e3;"></i>';
+    if (run.conclusion === 'success')
+      return '<i class="fa fa-check-circle" style="color:#6dbf85;"></i>';
+    return '<i class="fa fa-exclamation-circle" style="color:#e07070;"></i>';
+  }
+
+  function loadHistory() {
+    listEl.innerHTML = '<div style="padding:10px 14px; opacity:.6;">' + (isEn ? 'Loading\u2026' : 'Laster\u2026') + '</div>';
+    var token = getStoredToken();
+    var login = localStorage.getItem('samt-bu-gh-user');
+    var url   = 'https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=15';
+    if (login) url += '&actor=' + encodeURIComponent(login);
+    var headers = { 'Accept': 'application/vnd.github+json' };
+    if (token) headers['Authorization'] = 'token ' + token;
+
+    fetch(url, { headers: headers, cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var runs = data.workflow_runs || [];
+        if (!runs.length) {
+          listEl.innerHTML = '<div style="padding:10px 14px; opacity:.6;">' + (isEn ? 'No jobs found.' : 'Ingen jobber funnet.') + '</div>';
+          return;
+        }
+        var html = '';
+        runs.forEach(function(run) {
+          var msg  = run.display_title || run.name || '\u2013';
+          if (msg.length > 58) msg = msg.slice(0, 57) + '\u2026';
+          var time = (run.status === 'in_progress' || run.status === 'queued')
+            ? (isEn ? 'running\u2026' : 'kj\u00f8rer\u2026')
+            : timeAgo(run.updated_at);
+          html += '<div style="display:flex; align-items:center; gap:9px; padding:7px 12px; border-bottom:1px solid rgba(255,255,255,.06);">';
+          html += '<span style="flex-shrink:0; width:14px; text-align:center;">' + statusIcon(run) + '</span>';
+          html += '<span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">' + msg + '</span>';
+          html += '<span style="opacity:.5; font-size:12px; flex-shrink:0; white-space:nowrap; margin-left:6px;">' + time + '</span>';
+          html += '<a href="' + run.html_url + '" target="_blank" rel="noopener" title="' + (isEn ? 'Open in GitHub' : '\u00c5pne i GitHub') + '" style="color:#7ec8e3; text-decoration:none; flex-shrink:0; font-size:12px; opacity:.75; margin-left:4px;" onclick="event.stopPropagation();">\u2197</a>';
+          html += '</div>';
+        });
+        listEl.innerHTML = html;
+      })
+      .catch(function(err) {
+        listEl.innerHTML = '<div style="padding:10px 14px; color:#e07070;">\u26a0 ' + err.message + '</div>';
+      });
+  }
+
+  indicator.addEventListener('click', function(e) {
+    // Ikke åpne dialog hvis klikket var på en lenke inne i indikatoren (f.eks. samtuShowDoneIndicator)
+    if (e.target.tagName === 'A' || e.target.closest('a')) return;
+    if (dialog.style.display !== 'none') {
+      dialog.style.display = 'none';
+    } else {
+      dialog.style.display = 'block';
+      loadHistory();
+    }
+  });
+
+  closeBtn.addEventListener('click', function() { dialog.style.display = 'none'; });
+
+  document.addEventListener('click', function(e) {
+    if (dialog.style.display === 'none') return;
+    if (!dialog.contains(e.target) && !indicator.contains(e.target)) dialog.style.display = 'none';
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && dialog.style.display !== 'none') dialog.style.display = 'none';
+  });
+})();
 </script>
