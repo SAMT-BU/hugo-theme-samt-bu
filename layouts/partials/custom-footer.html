@@ -1413,7 +1413,7 @@ setTimeout(function() {
     var newContent = fm + body + '\n';
     var imgDir     = qeFilePath.replace('/_index.' + qeLang + '.md', '');
     var startTime  = Date.now();
-    var commitMsg  = (qeLang === 'en' ? 'Updated: ' : 'Oppdatert: ') + qePageTitle;
+    var commitMsg  = (qeLang === 'en' ? 'Edit page: ' : 'Endre side: ') + qePageTitle;
 
     // Hent ETag for nåværende side async (best-effort) – brukes til å detektere deploy
     var qeOldEtag = null;
@@ -1787,6 +1787,7 @@ setTimeout(function() {
       var login = run.triggering_actor && run.triggering_actor.login;
       if (showActor && login) fetchUserName(login);
       var msg = run.display_title || run.name || '\u2013';
+      msg = msg.replace(/^Oppdatert: /, 'Endre side: ').replace(/^Updated: /, 'Edit page: ');
       var maxLen = showActor ? 52 : 58;
       if (msg.length > maxLen) msg = msg.slice(0, maxLen - 1) + '\u2026';
       var time;
