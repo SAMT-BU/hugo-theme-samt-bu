@@ -181,14 +181,6 @@
 </div>
 
 {{/* Statusindikator i bunnen – vises mens oppdateringsjobb kjører i bakgrunnen */}}
-<div id="del-job-indicator" style="display:none; position:fixed; bottom:0; left:0; z-index:9998; background:rgba(30,30,30,0.93); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; border-radius:0 4px 0 0; align-items:center; gap:7px;">
-  <i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i>
-  <span>{{ cond (eq $lang "en") "Update in progress" "Oppdateringsjobb pågår" }}</span>
-</div>
-<div id="np-job-indicator" style="display:none; position:fixed; bottom:0; left:0; z-index:9998; background:rgba(30,30,30,0.93); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; border-radius:0 4px 0 0; align-items:center; gap:7px;">
-  <i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i>
-  <span>{{ cond (eq $lang "en") "Update in progress" "Oppdateringsjobb pågår" }}</span>
-</div>
 <div id="qe-job-indicator" style="display:flex; position:fixed; bottom:0; left:0; z-index:9998; background:rgba(30,30,30,0.93); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; border-radius:0 4px 0 0; align-items:center; gap:7px; cursor:pointer;" title="{{ cond (eq $lang "en") "Click to see job history" "Klikk for å se jobbhistorikk" }}">
   <i class="fa fa-history" style="font-size:12px; opacity:.7;"></i>
   <span style="opacity:.7;">{{ cond (eq $lang "en") "Build history" "Byggehistorikk" }}</span>
