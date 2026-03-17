@@ -1149,6 +1149,7 @@ setTimeout(function() {
   var qeRepo = '', qeFilePath = '', qeLang = 'nb', qePageTitle = '', qePermalink = '';
   var qeFrontmatter = '', qeEditor = null, qePollTimer = null;
   var qeImages = {}, qeImageMap = {};
+  var qeMinimizeTimer = null, qeMinimizeSaveTime = null;
 
   function parseFrontmatter(content) {
     var m = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
@@ -1262,7 +1263,12 @@ setTimeout(function() {
     saveBtn.style.background = '';
     saveBtn.style.cursor = '';
     var cancelBtn = document.getElementById('qe-cancel-btn');
-    if (cancelBtn) cancelBtn.textContent = lang === 'en' ? 'Cancel' : 'Avbryt';
+    if (cancelBtn) { cancelBtn.textContent = lang === 'en' ? 'Cancel' : 'Avbryt'; cancelBtn.onclick = null; }
+    // Nullstill minimerings-tilstand
+    var pill = document.getElementById('qe-minimize-pill');
+    if (pill) pill.style.display = 'none';
+    if (qeMinimizeTimer) { clearInterval(qeMinimizeTimer); qeMinimizeTimer = null; }
+    qeMinimizeSaveTime = null;
     setStatus(lang === 'en' ? 'Loading…' : 'Laster…');
     overlay.style.display = 'flex';
     window._applyDialogPos && window._applyDialogPos('qe-overlay');
@@ -1359,13 +1365,60 @@ setTimeout(function() {
   function closeQeDialog() {
     overlay.style.display = 'none';
     if (qePollTimer) {
-      // Bygg pågår: vis spinner i bunnen i stedet for å avbryte polling
       var ind = document.getElementById('qe-job-indicator');
       if (ind) ind.style.display = 'flex';
     }
   }
 
-  document.getElementById('qe-cancel-btn').addEventListener('click', closeQeDialog);
+  function minimizeQeDialog() {
+    overlay.style.display = 'none';
+    var pill = document.getElementById('qe-minimize-pill');
+    var pillBody = document.getElementById('qe-pill-body');
+    var ind = document.getElementById('qe-job-indicator');
+    if (qePollTimer && pill && pillBody) {
+      if (ind) ind.style.display = 'none';
+      var titleEl = document.getElementById('qe-pill-title');
+      var iconEl = document.getElementById('qe-pill-icon');
+      if (titleEl) titleEl.textContent = qePageTitle;
+      if (iconEl) { iconEl.className = 'fa fa-spinner fa-spin'; }
+      pillBody.style.background = 'rgba(26,74,138,0.95)'; // reset evt. grønn fra ferdig-tilstand
+      if (!qeMinimizeSaveTime) qeMinimizeSaveTime = Date.now();
+      pill.style.display = 'block';
+      // Elapsed-ticker
+      if (qeMinimizeTimer) clearInterval(qeMinimizeTimer);
+      qeMinimizeTimer = setInterval(function() {
+        var secs = Math.round((Date.now() - qeMinimizeSaveTime) / 1000);
+        var el = document.getElementById('qe-pill-elapsed');
+        var isEn = document.documentElement.lang === 'en';
+        if (el) el.textContent = '· ' + (secs < 60 ? secs + (isEn ? ' s' : ' sek') : Math.floor(secs / 60) + ' min');
+      }, 1000);
+      // Klikk på pill-body → gjenopprett dialogen
+      pillBody.onclick = function() {
+        if (pill) pill.style.display = 'none';
+        if (qeMinimizeTimer) { clearInterval(qeMinimizeTimer); qeMinimizeTimer = null; }
+        overlay.style.display = 'flex';
+      };
+      // Klikk på ✕ → avvis pillen, behold polling, vis enkel indikator
+      var pillDismiss = document.getElementById('qe-pill-dismiss');
+      if (pillDismiss) pillDismiss.onclick = function(e) {
+        e.stopPropagation();
+        if (pill) pill.style.display = 'none';
+        if (qeMinimizeTimer) { clearInterval(qeMinimizeTimer); qeMinimizeTimer = null; }
+        if (qePollTimer && ind) ind.style.display = 'flex';
+      };
+    } else {
+      // Ingen bygg – bare lukk uten pill
+      if (ind) ind.style.display = 'none';
+      if (pill) pill.style.display = 'none';
+    }
+  }
+
+  // cancel-btn: kall closeQeDialog bare når onclick ikke er satt (dvs. før lagring)
+  document.getElementById('qe-cancel-btn').addEventListener('click', function() {
+    var btn = document.getElementById('qe-cancel-btn');
+    if (!btn || !btn.onclick) closeQeDialog();
+  });
+  document.getElementById('qe-minimize-btn').addEventListener('click', minimizeQeDialog);
   overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeQeDialog(); e.stopPropagation(); });
 
   document.getElementById('qe-save-btn').addEventListener('click', function() {
@@ -1420,9 +1473,13 @@ setTimeout(function() {
       saveBtn.style.background = '#888';
       saveBtn.style.cursor = 'default';
       var cancelBtn = document.getElementById('qe-cancel-btn');
-      if (cancelBtn) cancelBtn.textContent = qeLang === 'en' ? 'Close this window' : 'Lukk dette vinduet';
+      if (cancelBtn) {
+        cancelBtn.textContent = qeLang === 'en' ? 'Minimize' : 'Minimer';
+        cancelBtn.onclick = function() { minimizeQeDialog(); return false; };
+      }
       var w = document.getElementById('qe-build-warning');
       if (w) w.style.display = 'none';
+      qeMinimizeSaveTime = startTime;
       samtuIncrementPending();
       pollQeBuild(startTime, qeOldEtag);
     }
@@ -1463,7 +1520,10 @@ setTimeout(function() {
 
     function onBuildDone() {
       clearInterval(qePollTimer); qePollTimer = null;
+      if (qeMinimizeTimer) { clearInterval(qeMinimizeTimer); qeMinimizeTimer = null; }
       samtuDecrementPending();
+      var pill = document.getElementById('qe-minimize-pill');
+      var pillVisible = pill && pill.style.display !== 'none';
       if (overlay.style.display !== 'none') {
         // Dialog er åpen: 3s gir fanfare (1.35s) + tale (starter 1.5s) tid til å spille
         var secs = 3;
@@ -1477,8 +1537,21 @@ setTimeout(function() {
           btn.onclick = function() { clearTimeout(navTimer); doNav(); };
         }
         var navTimer = setTimeout(doNav, secs * 1000);
+      } else if (pillVisible) {
+        // Dialog er minimert: pill → grønn ✓ → auto-reload etter 3s
+        var pillBody = document.getElementById('qe-pill-body');
+        var pillIcon = document.getElementById('qe-pill-icon');
+        var pillElapsed = document.getElementById('qe-pill-elapsed');
+        var pillDismiss = document.getElementById('qe-pill-dismiss');
+        var isEn = document.documentElement.lang === 'en';
+        if (pillBody) pillBody.style.background = 'rgba(22,100,55,0.97)';
+        if (pillIcon) pillIcon.className = 'fa fa-check-circle';
+        if (pillElapsed) pillElapsed.textContent = isEn ? '· Published' : '· Publisert';
+        var pillNavTimer = setTimeout(function() { if (pill) pill.style.display = 'none'; doNav(); }, 3000);
+        if (pillBody) pillBody.onclick = function() { clearTimeout(pillNavTimer); if (pill) pill.style.display = 'none'; doNav(); };
+        if (pillDismiss) pillDismiss.onclick = function(e) { e.stopPropagation(); clearTimeout(pillNavTimer); if (pill) pill.style.display = 'none'; doNav(); };
       } else {
-        // Dialog er lukket: forsinkelse slik at fanfare rekker å spille før navigering
+        // Dialog er lukket, ingen pill: forsinkelse slik at fanfare rekker å spille
         setTimeout(doNav, 1600);
       }
     }
@@ -1562,9 +1635,11 @@ setTimeout(function() {
     var qeInd = document.getElementById('qe-job-indicator');
     var npInd = document.getElementById('np-job-indicator');
     var delInd = document.getElementById('del-job-indicator');
+    var qePill = document.getElementById('qe-minimize-pill');
     if ((qeInd && qeInd.style.display !== 'none') ||
         (npInd && npInd.style.display !== 'none') ||
-        (delInd && delInd.style.display !== 'none')) return;
+        (delInd && delInd.style.display !== 'none') ||
+        (qePill && qePill.style.display !== 'none')) return;
 
     fetch(pageUrl + '?_bg=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
       .then(function(r) {

@@ -257,6 +257,16 @@
   </div>
 </div>
 
+{{/* Minimer-pill: vises når editor-dialogen er minimert og bygg pågår */}}
+<div id="qe-minimize-pill" style="display:none; position:fixed; bottom:12px; left:50%; transform:translateX(-50%); z-index:100000; border-radius:22px; box-shadow:0 2px 14px rgba(0,0,0,.35); font-size:13px; white-space:nowrap; overflow:hidden; max-width:min(420px,90vw);">
+  <div id="qe-pill-body" style="display:flex; align-items:center; gap:7px; padding:8px 6px 8px 14px; background:rgba(26,74,138,0.95); color:#fff; cursor:pointer; border-radius:22px;">
+    <i id="qe-pill-icon" class="fa fa-spinner fa-spin" style="font-size:11px; opacity:.85; flex-shrink:0;"></i>
+    <span id="qe-pill-title" style="font-weight:600; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:middle; max-width:220px;"></span>
+    <span id="qe-pill-elapsed" style="opacity:.75; font-size:12px; flex-shrink:0;"></span>
+    <button id="qe-pill-dismiss" type="button" title="{{ cond (eq $lang "en") "Close" "Lukk" }}" style="background:none; border:none; color:rgba(255,255,255,.7); cursor:pointer; font-size:14px; padding:0 6px 0 2px; line-height:1; flex-shrink:0;">✕</button>
+  </div>
+</div>
+
 {{/* Modal: Rediger innhold – full-skjerm TipTap WYSIWYG-editor */}}
 <style>
   /* TipTap toolbar – delt av np-dialog og qe-dialog */
@@ -320,6 +330,7 @@
     <span id="qe-title" style="font-size:1.35rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:55%;"></span>
     <div style="flex:1; display:flex; justify-content:flex-end; align-items:center; gap:.6rem;">
       <span id="qe-status-text" style="font-size:1rem; opacity:.85; white-space:nowrap;"></span>
+      <button type="button" id="qe-minimize-btn" title="{{ cond (eq $lang "en") "Minimize" "Minimer" }}" style="padding:.35rem .6rem; border:1px solid rgba(255,255,255,.4); border-radius:4px; background:transparent; color:#fff; cursor:pointer; font-size:14px; line-height:1;">⊟</button>
       <button type="button" id="qe-maximize-btn" title="{{ cond (eq $lang "en") "Maximize / Restore" "Maksimer / Gjenopprett" }}" style="padding:.35rem .6rem; border:1px solid rgba(255,255,255,.4); border-radius:4px; background:transparent; color:#fff; cursor:pointer; font-size:14px; line-height:1;"><i class="fa fa-expand"></i></button>
       <button type="button" id="qe-cancel-btn" style="padding:.35rem .9rem; border:1px solid rgba(255,255,255,.5); border-radius:4px; background:transparent; color:#fff; cursor:pointer; font-size:15px; font-family:inherit;">{{ cond (eq $lang "en") "Cancel" "Avbryt" }}</button>
       <button type="button" id="qe-save-btn" style="padding:.35rem 1rem; border:none; border-radius:4px; background:#fff; color:#1a4a8a; cursor:pointer; font-size:15px; font-family:inherit; font-weight:600;">{{ cond (eq $lang "en") "Save" "Lagre" }}</button>
