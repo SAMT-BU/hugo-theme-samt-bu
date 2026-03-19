@@ -1983,8 +1983,13 @@ setTimeout(function() {
       return '<i class="fa fa-spinner fa-spin" style="color:#7ec8e3;"></i>';
     if (run.status === 'queued' || run.status === 'waiting' || run.status === 'pending' || run.status === 'requested')
       return '<i class="fa fa-clock-o" style="color:#aaa;"></i>';
-    if (run.conclusion === 'success')
+    if (run.conclusion === 'success') {
+      var cfDone = samtuLookupBuildTime(run.created_at);
+      var isRecent = (Date.now() - new Date(run.created_at).getTime()) < 600000;
+      if (!cfDone && isRecent)
+        return '<i class="fa fa-spinner fa-spin" style="color:#7ec8e3; opacity:.7;" title="CF Pages deployer\u2026"></i>';
       return '<i class="fa fa-check-circle" style="color:#6dbf85;"></i>';
+    }
     if (run.conclusion === 'cancelled')
       return '<i class="fa fa-check-circle" style="color:#888;" title="Avløst av nyere bygg"></i>';
     return '<i class="fa fa-exclamation-circle" style="color:#e07070;"></i>';
@@ -2049,7 +2054,7 @@ setTimeout(function() {
         var storedMs = samtuLookupBuildTime(run.created_at);
         time = storedMs
           ? fmtSec(Math.round(storedMs / 1000))
-          : fmtSec(Math.round((Date.now() - new Date(run.created_at).getTime()) / 1000));
+          : fmtSec(Math.round((Date.now() - new Date(run.updated_at).getTime()) / 1000));
       } else {
         time = timeAgo(run.updated_at);
       }
