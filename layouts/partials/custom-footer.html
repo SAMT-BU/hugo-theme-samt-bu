@@ -358,13 +358,7 @@ setTimeout(function() {
           clearInterval(resumeTimer);
           var cfDoneUrl = window.location.href.split('?')[0];
           var cfDoneLang = document.documentElement.lang === 'en';
-          var cfDoneInd = document.getElementById('qe-job-indicator');
-          if (cfDoneInd) {
-            cfDoneInd.innerHTML = '<i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i>' +
-              '<span style="margin-left:7px;">' + (cfDoneLang ? 'Publishing to CDN\u2026' : 'Publiserer til CDN\u2026') + '</span>';
-            cfDoneInd.dataset.building = '1';
-            cfDoneInd.style.display = 'flex';
-          }
+
           function fireCfDone() {
             if (window._samtuDoneFired) return;
             window._samtuDoneFired = true;
@@ -373,13 +367,29 @@ setTimeout(function() {
             samtuPlaySuccess();
             setTimeout(function() { window.location.href = cfDoneUrl + '?_=' + Date.now(); }, 1800);
           }
+
+          // Har det gått > 90 sek siden lagring er CF Pages garantert ferdig –
+          // siden viser allerede nytt innhold, ETag-poll ville aldri oppdage endring.
+          if (Date.now() - p2.firstSaveAt > 90000) {
+            fireCfDone();
+            return;
+          }
+
+          // Ellers: vis mellomtilstand og poll til ETag faktisk endres
+          var cfDoneInd = document.getElementById('qe-job-indicator');
+          if (cfDoneInd) {
+            cfDoneInd.innerHTML = '<i class="fa fa-spinner fa-spin" style="font-size:12px; opacity:.85;"></i>' +
+              '<span style="margin-left:7px;">' + (cfDoneLang ? 'Publishing to CDN\u2026' : 'Publiserer til CDN\u2026') + '</span>';
+            cfDoneInd.dataset.building = '1';
+            cfDoneInd.style.display = 'flex';
+          }
           var cfBaseEtag = null;
           var cfAttempts = 0;
           fetch(cfDoneUrl, { method: 'HEAD', cache: 'no-store' })
             .then(function(r) { cfBaseEtag = r.headers.get('etag') || r.headers.get('last-modified'); })
             .catch(function() {});
           var cfTimer = setInterval(function() {
-            if (++cfAttempts > 120) { clearInterval(cfTimer); fireCfDone(); return; }
+            if (++cfAttempts > 60) { clearInterval(cfTimer); fireCfDone(); return; }
             fetch(cfDoneUrl + '?_cf=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
               .then(function(r) {
                 var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
