@@ -769,7 +769,7 @@ setTimeout(function() {
           npNewPageUrl = parentUrl + slug + '/';
         }
         showNpBuildPanel();
-        showNpJobIndicator();
+        samtuIncrementPending();
         npPollBuild(startTime);
       })
       .catch(function(err) {
@@ -925,13 +925,12 @@ setTimeout(function() {
     npActivePollTimer = startUrlPoll(npNewPageUrl,
       function onDone() {
         clearInterval(npActivePollTimer); npActivePollTimer = null;
-        hideNpJobIndicator();
-        samtuClearPending();
+        samtuDecrementPending();
         window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
       },
       function onError(reason) {
         clearInterval(npActivePollTimer); npActivePollTimer = null;
-        hideNpJobIndicator();
+        samtuDecrementPending();
         setNpStatus((lang === 'en' ? '⚠ Timed out: ' : '⚠ Tidsavbrudd: ') + reason);
       },
       function onStatus(secs) { setNpStatus(lang === 'en' ? 'Updating site (' + secs + 's)…' : 'Nettsted oppdateres (' + secs + ' sek)…'); }
@@ -1004,6 +1003,7 @@ setTimeout(function() {
   document.getElementById('del-confirm-btn').addEventListener('click', function() {
     var token = getStoredToken();
     if (!token) { closeDialog(); return; }
+    samtuUnlockAudio();
 
     var confirmBtn = document.getElementById('del-confirm-btn');
     var cancelBtn  = document.getElementById('del-cancel');
@@ -1028,7 +1028,7 @@ setTimeout(function() {
     tryDelCommit(2)
       .then(function() {
         showBuildPanel();
-        showJobIndicator();
+        samtuIncrementPending();
         pollBuild(startTime);
       })
       .catch(function(err) {
@@ -1103,13 +1103,13 @@ setTimeout(function() {
 
     document.getElementById('del-panel-done').onclick = function() {
       clearInterval(activePollTimer); activePollTimer = null;
-      hideJobIndicator();
       navAfterDelete();
     };
 
     function onDone() {
       clearInterval(activePollTimer); activePollTimer = null;
-      hideJobIndicator();
+      samtuDecrementPending();
+      samtuPlaySuccess();
       var doneBtn = document.getElementById('del-panel-done');
       if (doneBtn) doneBtn.style.display = 'inline-block';
       var secs = 3;
@@ -1570,11 +1570,7 @@ setTimeout(function() {
     if (!knownEtag) return;
     // Ikke poll under aktiv rediger/slett-jobb (sjekk synlige indikatorer)
     var qeInd = document.getElementById('qe-job-indicator');
-    var npInd = document.getElementById('np-job-indicator');
-    var delInd = document.getElementById('del-job-indicator');
-    if ((qeInd && qeInd.dataset.building) ||
-        (npInd && npInd.style.display !== 'none') ||
-        (delInd && delInd.style.display !== 'none')) return;
+    if (qeInd && qeInd.dataset.building) return;
 
     fetch(pageUrl + '?_bg=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
       .then(function(r) {
