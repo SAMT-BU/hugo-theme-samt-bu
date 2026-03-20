@@ -285,6 +285,20 @@
       }
       applyActiveParent();
       setTimeout(applyActiveParent, 0);
+
+      // Hent fullt navn fra GitHub API for last_editor-login
+      var editorEl = document.querySelector('[data-editor-login]');
+      if (editorEl) {
+        var login = editorEl.dataset.editorLogin;
+        if (login && !editorEl.textContent.includes('(')) {
+          fetch('https://api.github.com/users/' + login)
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              if (d.name) editorEl.textContent = 'av bruker: ' + login + ' (' + d.name + ')';
+            })
+            .catch(function() {});
+        }
+      }
     })();
     </script>
 
