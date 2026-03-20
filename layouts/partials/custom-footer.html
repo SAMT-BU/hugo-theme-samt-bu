@@ -1101,6 +1101,8 @@ setTimeout(function() {
     var pageUrl = window.location.href.split('?')[0];
     var attempts = 0;
 
+    samtuPlayStart();
+
     document.getElementById('del-panel-done').onclick = function() {
       clearInterval(activePollTimer); activePollTimer = null;
       navAfterDelete();
