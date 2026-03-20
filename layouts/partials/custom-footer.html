@@ -711,6 +711,10 @@ setTimeout(function() {
           return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
         });
 
+    var editorLogin = localStorage.getItem('samt-bu-gh-user');
+    var editorName  = localStorage.getItem('samt-bu-gh-name');
+    var editorValue = editorLogin ? (editorName ? editorLogin + ' (' + editorName + ')' : editorLogin) : null;
+
     var nbLines = ['---', 'id: ' + newId, 'title: ' + yamlStr(titleNb)];
     if (linkTitleNb) nbLines.push('linkTitle: ' + yamlStr(linkTitleNb));
     if (weight) nbLines.push('weight: ' + parseInt(weight, 10));
@@ -718,6 +722,7 @@ setTimeout(function() {
       nbLines.push('status: ' + statusNb);
       nbLines.push('# Gyldige verdier: Ny | Tidlig utkast | Pågår | Til QA | Godkjent | Avbrutt');
     }
+    if (editorValue) nbLines.push('last_editor: ' + editorValue);
     nbLines.push('---');
     if (body) { nbLines.push(''); nbLines.push(body); }
     var nbContent = nbLines.join('\n') + '\n';
@@ -730,6 +735,7 @@ setTimeout(function() {
       enLines.push('status: ' + statusEn);
       enLines.push('# Valid values: New | Early draft | In progress | For QA | Approved | Cancelled');
     }
+    if (editorValue) enLines.push('last_editor: ' + editorValue);
     enLines.push('---');
     enLines.push('');
     enLines.push('*English translation TBD.*');
