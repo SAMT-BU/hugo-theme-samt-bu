@@ -274,11 +274,45 @@ function startGhPoll(startTime, onDone, onError, onStatus) {
 }
 
 // Poll URL direkte – brukes for ny side (same-origin, ingen token)
-function startUrlPoll(url, onDone, onError, onStatus) {
+function startUrlPoll(url, onDone, onError, onStatus, startTime) {
   samtuPlayStart();
   var attempts = 0;
-  return setInterval(function() {
-    if (++attempts > 90) { samtuPlayFailure(); onError('timeout'); return; }
+  var _checkingApi = false;
+  var timer = setInterval(function() {
+    if (++attempts > 90) {
+      if (_checkingApi) return; // Unngå parallelle API-kall
+      _checkingApi = true;
+      // Sjekk faktisk byggestatus – rapporter kun feil hvis GitHub bekrefter det
+      var _tok = getStoredToken();
+      var _h = { 'Accept': 'application/vnd.github+json' };
+      if (_tok) _h['Authorization'] = 'token ' + _tok;
+      var _since = startTime || (Date.now() - 120000);
+      fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: _h })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          _checkingApi = false;
+          var run = null;
+          if (data.workflow_runs) {
+            for (var i = 0; i < data.workflow_runs.length; i++) {
+              if (new Date(data.workflow_runs[i].created_at).getTime() >= _since - 30000) {
+                run = data.workflow_runs[i]; break;
+              }
+            }
+          }
+          if (!run) { clearInterval(timer); samtuPlayFailure(); onError('timeout'); return; }
+          if (run.status === 'in_progress' || run.status === 'queued') {
+            attempts = 0; // Bygg pågår – nullstill teller og fortsett poll
+          } else if (run.status === 'completed' && run.conclusion === 'success') {
+            clearInterval(timer); samtuPlaySuccess(); onDone();
+          } else if (run.status === 'completed' && run.conclusion === 'cancelled') {
+            attempts = 0; onStatus('Avbrutt – venter på nytt bygg…');
+          } else {
+            clearInterval(timer); samtuPlayFailure(); onError(run.conclusion || 'timeout');
+          }
+        })
+        .catch(function() { _checkingApi = false; clearInterval(timer); samtuPlayFailure(); onError('timeout'); });
+      return;
+    }
     fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(),
           { method: 'HEAD', cache: 'no-store' })
       .then(function(r) {
@@ -287,6 +321,7 @@ function startUrlPoll(url, onDone, onError, onStatus) {
       })
       .catch(function() { onStatus('Venter…'); });
   }, 1000);
+  return timer;
 }
 
 // TipTap lazy-laster (delt av np-dialog og qe-dialog)
@@ -939,7 +974,8 @@ setTimeout(function() {
         samtuDecrementPending();
         setNpStatus((lang === 'en' ? '⚠ Timed out: ' : '⚠ Tidsavbrudd: ') + reason);
       },
-      function onStatus(secs) { setNpStatus(lang === 'en' ? 'Updating site (' + secs + 's)…' : 'Nettsted oppdateres (' + secs + ' sek)…'); }
+      function onStatus(secs) { setNpStatus(lang === 'en' ? 'Updating site (' + secs + 's)…' : 'Nettsted oppdateres (' + secs + ' sek)…'); },
+      startTime
     );
   }
 
@@ -1616,8 +1652,41 @@ setTimeout(function() {
     if (oldEtag) {
       samtuPlayStart();
       // ETag-deteksjon: vent til Cloudflare serverer ny versjon (same-origin HEAD-poll)
+      var _checkingApi = false;
       qePollTimer = setInterval(function() {
-        if (++attempts > 180) { clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); return; }
+        if (++attempts > 180) {
+          if (_checkingApi) return; // Unngå parallelle API-kall
+          _checkingApi = true;
+          // Sjekk faktisk byggestatus – rapporter kun feil hvis GitHub bekrefter det
+          var _tok = getStoredToken();
+          var _h = { 'Accept': 'application/vnd.github+json' };
+          if (_tok) _h['Authorization'] = 'token ' + _tok;
+          fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: _h })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              _checkingApi = false;
+              var run = null;
+              if (data.workflow_runs) {
+                for (var i = 0; i < data.workflow_runs.length; i++) {
+                  if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) {
+                    run = data.workflow_runs[i]; break;
+                  }
+                }
+              }
+              if (!run) { clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); return; }
+              if (run.status === 'in_progress' || run.status === 'queued') {
+                attempts = 0; // Bygg pågår – nullstill teller og fortsett ETag-poll
+              } else if (run.status === 'completed' && run.conclusion === 'success') {
+                clearInterval(qePollTimer); qePollTimer = null; samtuPlaySuccess(); onBuildDone();
+              } else if (run.status === 'completed' && run.conclusion === 'cancelled') {
+                attempts = 0; setStatus(lang === 'en' ? 'Cancelled – waiting for new build…' : 'Avbrutt – venter på nytt bygg…');
+              } else {
+                clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ ' + (run.conclusion || 'Tidsavbrudd'));
+              }
+            })
+            .catch(function() { _checkingApi = false; clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); });
+          return;
+        }
         fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
           .then(function(r) {
             var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
