@@ -86,7 +86,7 @@ function checkBuildInProgress(filePath, callback) {
     .catch(function() { callback(false); });
 }
 
-// Hent og cache innlogget GitHub-brukernavn (brukes til last_editor i frontmatter)
+// Hent og cache innlogget GitHub-brukernavn
 function fetchCurrentUser(callback) {
   var cached = localStorage.getItem('samt-bu-gh-user');
   if (cached) { callback(cached); return; }
@@ -764,10 +764,6 @@ setTimeout(function() {
           return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
         });
 
-    var editorLogin = localStorage.getItem('samt-bu-gh-user');
-    var editorName  = localStorage.getItem('samt-bu-gh-name');
-    var editorValue = editorLogin ? (editorName ? editorLogin + ' (' + editorName + ')' : editorLogin) : null;
-
     var nbLines = ['---', 'id: ' + newId, 'title: ' + yamlStr(titleNb)];
     if (linkTitleNb) nbLines.push('linkTitle: ' + yamlStr(linkTitleNb));
     if (weight) nbLines.push('weight: ' + parseInt(weight, 10));
@@ -775,7 +771,6 @@ setTimeout(function() {
       nbLines.push('status: ' + statusNb);
       nbLines.push('# Gyldige verdier: Ny | Tidlig utkast | Pågår | Til QA | Godkjent | Avbrutt');
     }
-    if (editorValue) nbLines.push('last_editor: ' + editorValue);
     nbLines.push('---');
     if (body) { nbLines.push(''); nbLines.push(body); }
     var nbContent = nbLines.join('\n') + '\n';
@@ -788,7 +783,6 @@ setTimeout(function() {
       enLines.push('status: ' + statusEn);
       enLines.push('# Valid values: New | Early draft | In progress | For QA | Approved | Cancelled');
     }
-    if (editorValue) enLines.push('last_editor: ' + editorValue);
     enLines.push('---');
     enLines.push('');
     enLines.push('*English translation TBD.*');
@@ -1573,11 +1567,6 @@ setTimeout(function() {
     else              fm = removeFmField(fm, 'status');
     if (!document.getElementById('qe-field-hidetoc').checked) fm = setFmField(fm, 'hide_toc', 'hide_toc: true');
     else              fm = removeFmField(fm, 'hide_toc');
-    var editorLogin = localStorage.getItem('samt-bu-gh-user');
-    var editorName  = localStorage.getItem('samt-bu-gh-name');
-    var editorValue = editorLogin ? (editorName ? editorLogin + ' (' + editorName + ')' : editorLogin) : null;
-    if (editorValue) fm = setFmField(fm, 'last_editor', 'last_editor: ' + editorValue);
-
     var newContent = fm + body + '\n';
     var imgDir     = qeFilePath.replace('/_index.' + qeLang + '.md', '');
     var startTime  = Date.now();
