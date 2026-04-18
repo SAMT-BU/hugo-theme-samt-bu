@@ -1578,7 +1578,10 @@ setTimeout(function() {
       var m = document.querySelector('meta[name="samtu-build"]');
       return m ? m.getAttribute('content') : null;
     }());
-    fetch(qePermalink, { cache: 'no-store' })
+    fetch(qePermalink + (qePermalink.indexOf('?') >= 0 ? '&' : '?') + '_pre=' + Date.now(), {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+    })
       .then(function(r) { return r.text(); })
       .then(function(html) {
         var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
@@ -1730,7 +1733,10 @@ setTimeout(function() {
           .catch(function() { _checkingApi = false; clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); });
         return;
       }
-      fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { cache: 'no-store' })
+      fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      })
         .then(function(r) { return r.text(); })
         .then(function(html) {
           var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
@@ -1739,12 +1745,12 @@ setTimeout(function() {
           var fresh = newBuildTime >= startTime;
           var changed = !oldEtag || newEtag !== oldEtag;
           if (attempts === 1 || attempts % 5 === 0) {
-            console.log('[samtu] poll #' + attempts + ' newEtag:', newEtag, 'newBuildTime>=startTime:', fresh, 'changed:', changed);
+            console.log('[samtu] poll #' + attempts + ' newEtag:', newEtag, 'fresh:', fresh, 'changed:', changed, 'startTime:', new Date(startTime).toISOString());
           }
-          // Ferdig om: meta-tag finnes, er ny nok (>= saveTime), og er endret fra gammel (eller gammel var ukjent)
-          if (newEtag && fresh && changed) {
+          // Ferdig om: meta-tag er endret fra gammel OG (ny nok til å være vår build, eller vi hadde ingen gammel referanse)
+          if (newEtag && changed && (fresh || !oldEtag)) {
             var cfSec = Math.round((Date.now() - startTime) / 1000);
-            console.log('[samtu] CF Pages build detected! cfSec:', cfSec);
+            console.log('[samtu] CF Pages build detected! cfSec:', cfSec, 'newEtag:', newEtag);
             try { localStorage.setItem('samtu-cf-duration', JSON.stringify({ startTime: startTime, duration: cfSec })); } catch(e) {}
             samtuPlaySuccess(); onBuildDone();
           } else {
