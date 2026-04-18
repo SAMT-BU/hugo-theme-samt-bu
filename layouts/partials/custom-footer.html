@@ -1735,7 +1735,9 @@ setTimeout(function() {
           .then(function(html) {
             var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
             var newEtag = m ? m[1] : null;
-            if (newEtag && newEtag !== oldEtag) { samtuPlaySuccess(); onBuildDone(); }
+            // Kun tell som ferdig om det er vår build: meta-tag-dato >= save-tidspunkt
+            var newBuildTime = newEtag ? new Date(newEtag).getTime() : 0;
+            if (newEtag && newEtag !== oldEtag && newBuildTime >= startTime) { samtuPlaySuccess(); onBuildDone(); }
             else setStatus(lang === 'en' ? 'Updating site (' + attempts + 's)…' : 'Nettsted oppdateres (' + attempts + ' sek)…');
           })
           .catch(function() { setStatus('Venter…'); });
