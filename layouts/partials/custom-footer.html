@@ -1572,14 +1572,20 @@ setTimeout(function() {
     var startTime  = Date.now();
     var commitMsg  = (qeLang === 'en' ? 'Updated: ' : 'Oppdatert: ') + qePageTitle;
 
-    // Hent ETag for nåværende side async (best-effort) – brukes til å detektere deploy
+    // Hent samtu-build-meta FØR lagring – brukes til å detektere CF Pages-deploy
     var qeOldEtag = null;
-    fetch(qePermalink, { method: 'HEAD', cache: 'no-store' })
-      .then(function(r) {
-        qeOldEtag = r.headers.get('etag') || r.headers.get('last-modified') || null;
-        console.log('[samtu] oldEtag', qeOldEtag);
+    var qeOldBuild = (function() {
+      var m = document.querySelector('meta[name="samtu-build"]');
+      return m ? m.getAttribute('content') : null;
+    }());
+    fetch(qePermalink, { cache: 'no-store' })
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
+        if (m) qeOldEtag = m[1];
+        else qeOldEtag = qeOldBuild; // fallback til live DOM-verdi
       })
-      .catch(function() {});
+      .catch(function() { qeOldEtag = qeOldBuild; });
 
     function onSaveSuccess(commitResult) {
       setStatus(qeLang === 'en' ? 'Saved! Updating site…' : 'Lagret! Nettstedet oppdateres…');
@@ -1724,11 +1730,12 @@ setTimeout(function() {
             .catch(function() { _checkingApi = false; clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); });
           return;
         }
-        fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
-          .then(function(r) {
-            var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
-            console.log('[samtu] poll', attempts, 'old:', oldEtag, 'new:', newEtag);
-            if (r.ok && newEtag && newEtag !== oldEtag) { samtuPlaySuccess(); onBuildDone(); }
+        fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { cache: 'no-store' })
+          .then(function(r) { return r.text(); })
+          .then(function(html) {
+            var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
+            var newEtag = m ? m[1] : null;
+            if (newEtag && newEtag !== oldEtag) { samtuPlaySuccess(); onBuildDone(); }
             else setStatus(lang === 'en' ? 'Updating site (' + attempts + 's)…' : 'Nettsted oppdateres (' + attempts + ' sek)…');
           })
           .catch(function() { setStatus('Venter…'); });
