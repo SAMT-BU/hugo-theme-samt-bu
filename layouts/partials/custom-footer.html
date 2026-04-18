@@ -390,24 +390,20 @@ setTimeout(function() {
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data.workflow_runs) return;
-        var myCompleted = 0, myCancelled = 0, totalActive = 0;
+        var myCompletedTotal = 0, totalActive = 0;
         for (var i = 0; i < data.workflow_runs.length; i++) {
           var run = data.workflow_runs[i];
           if (new Date(run.created_at).getTime() < p2.firstSaveAt - 30000) break;
           var isMine = !p2.actor || (run.triggering_actor && run.triggering_actor.login === p2.actor);
           if (run.status === 'completed') {
-            if (isMine) {
-              if (run.conclusion === 'success') myCompleted++;
-              else if (run.conclusion === 'cancelled') myCancelled++;
-            }
+            if (isMine && run.conclusion === 'success') myCompletedTotal++;
           } else if (run.status === 'queued' || run.status === 'in_progress') {
             totalActive++;
           }
         }
-        // Oppdater indikator med totalteller for alle aktive bygg
-        samtuShowPendingIndicatorWithTotal(p2.count, totalActive);
-        // Minst én suksess og ingen aktive → alle endringer deployet (kansellerte avløst av siste bygg)
-        if (myCompleted > 0 && totalActive === 0) {
+        var allDone = (myCompletedTotal > 0 && totalActive === 0);
+        if (allDone) {
+          // Alle bygg ferdige
           clearInterval(resumeTimer);
           samtuClearPending();
           samtuShowDoneIndicator();
@@ -415,6 +411,22 @@ setTimeout(function() {
           setTimeout(function() {
             window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
           }, 1800);
+        } else {
+          // Oppdater teller: dekrementer per ny suksess-kjøring siden sist
+          var prevSeen = p2.seenCompleted || 0;
+          var newCompletions = myCompletedTotal - prevSeen;
+          if (newCompletions > 0) {
+            var newCount = Math.max(1, (p2.count || 0) - newCompletions);
+            try {
+              localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({
+                count: newCount, firstSaveAt: p2.firstSaveAt, lastSaveAt: p2.lastSaveAt,
+                seenCompleted: myCompletedTotal, actor: p2.actor
+              }));
+            } catch(e) {}
+            samtuShowPendingIndicatorWithTotal(newCount, totalActive);
+          } else {
+            samtuShowPendingIndicatorWithTotal(p2.count, totalActive);
+          }
         }
       })
       .catch(function() {});
@@ -978,7 +990,6 @@ setTimeout(function() {
     npActivePollTimer = startUrlPoll(npNewPageUrl,
       function onDone() {
         clearInterval(npActivePollTimer); npActivePollTimer = null;
-        samtuDecrementPending();
         window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
       },
       function onError(reason) {
@@ -1270,7 +1281,6 @@ setTimeout(function() {
 
     function onDone() {
       clearInterval(activePollTimer); activePollTimer = null;
-      samtuDecrementPending();
       samtuPlaySuccess();
       var doneBtn = document.getElementById('del-panel-done');
       if (doneBtn) doneBtn.style.display = 'inline-block';
@@ -1636,7 +1646,6 @@ setTimeout(function() {
 
     function onBuildDone() {
       clearInterval(qePollTimer); qePollTimer = null;
-      samtuDecrementPending();
       if (overlay.style.display !== 'none') {
         // Dialog er åpen: 3s gir fanfare (1.35s) + tale (starter 1.5s) tid til å spille
         var secs = 3;
@@ -1834,8 +1843,7 @@ setTimeout(function() {
           knownEtag = newEtag;
           clearInterval(bgTimer);
           if (p && p.count) {
-            // Egne ventende endringer – dekrement og last inn
-            samtuDecrementPending();
+            // Egne ventende endringer – last inn (checkCompletions håndterer dekrement)
             window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
           } else if (bgExternalRun) {
             // Eksternt bygg er ferdig – auto-last inn (ikke banner)
