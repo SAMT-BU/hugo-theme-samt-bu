@@ -1575,7 +1575,10 @@ setTimeout(function() {
     // Hent ETag for nåværende side async (best-effort) – brukes til å detektere deploy
     var qeOldEtag = null;
     fetch(qePermalink, { method: 'HEAD', cache: 'no-store' })
-      .then(function(r) { qeOldEtag = r.headers.get('etag') || r.headers.get('last-modified') || null; })
+      .then(function(r) {
+        qeOldEtag = r.headers.get('etag') || r.headers.get('last-modified') || null;
+        console.log('[samtu] oldEtag', qeOldEtag);
+      })
       .catch(function() {});
 
     function onSaveSuccess(commitResult) {
@@ -1724,6 +1727,7 @@ setTimeout(function() {
         fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
           .then(function(r) {
             var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
+            console.log('[samtu] poll', attempts, 'old:', oldEtag, 'new:', newEtag);
             if (r.ok && newEtag && newEtag !== oldEtag) { samtuPlaySuccess(); onBuildDone(); }
             else setStatus(lang === 'en' ? 'Updating site (' + attempts + 's)…' : 'Nettsted oppdateres (' + attempts + ' sek)…');
           })
