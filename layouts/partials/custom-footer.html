@@ -1578,7 +1578,7 @@ setTimeout(function() {
       .then(function(r) { qeOldEtag = r.headers.get('etag') || r.headers.get('last-modified') || null; })
       .catch(function() {});
 
-    function onSaveSuccess() {
+    function onSaveSuccess(commitResult) {
       setStatus(qeLang === 'en' ? 'Saved! Updating site…' : 'Lagret! Nettstedet oppdateres…');
       saveBtn.disabled = true;
       saveBtn.textContent = qeLang === 'en' ? 'Saved' : 'Lagret';
@@ -1591,7 +1591,48 @@ setTimeout(function() {
       var w = document.getElementById('qe-build-warning');
       if (w) w.style.display = 'none';
       samtuIncrementPending();
-      pollQeBuild(startTime, qeOldEtag);
+      var commitSha = commitResult && commitResult.sha || null;
+      if (commitResult && commitResult.repo !== 'samt-bu-docs' && commitSha) {
+        // Modulrepo: hent samt-bu-docs HEAD SHA for CF check-run-sporing
+        var mh = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
+        fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/git/ref/heads/main', { headers: mh, cache: 'no-store' })
+          .then(function(r) { return r.json(); })
+          .then(function(ref) { startCfTracking(startTime, ref.object && ref.object.sha || null); })
+          .catch(function() { startCfTracking(startTime, null); });
+      } else {
+        startCfTracking(startTime, commitSha);
+      }
+    }
+
+    function startCfTracking(startTime, sha) {
+      if (!sha) { pollQeBuild(startTime, qeOldEtag); return; }
+      var statusSecs = 0;
+      var statusTimer = setInterval(function() {
+        statusSecs += 5;
+        setStatus(qeLang === 'en' ? 'Updating site (' + statusSecs + 's)…' : 'Nettsted oppdateres (' + statusSecs + ' sek)…');
+      }, 5000);
+      function onCfDone() {
+        clearInterval(statusTimer);
+        if (qePollTimer) { clearInterval(qePollTimer); qePollTimer = null; }
+        samtuPlaySuccess();
+        samtuDecrementPending();
+        var secs = 3;
+        setStatus(qeLang === 'en' ? '✓ Done! Reloading in ' + secs + 's…' : '✓ Ferdig! Laster inn om ' + secs + ' sek…');
+        var btn = document.getElementById('qe-save-btn');
+        if (btn) {
+          btn.disabled = false; btn.style.background = ''; btn.style.cursor = '';
+          btn.textContent = qeLang === 'en' ? 'Reload now ↗' : 'Last inn nå ↗';
+          btn.onclick = function() { clearTimeout(navTimer); window.location.href = qePermalink + '?_=' + Date.now(); };
+        }
+        var navTimer = setTimeout(function() { window.location.href = qePermalink + '?_=' + Date.now(); }, secs * 1000);
+      }
+      function onCfError(reason) {
+        clearInterval(statusTimer);
+        if (qePollTimer) { clearInterval(qePollTimer); qePollTimer = null; }
+        samtuPlayFailure();
+        setStatus('⚠ ' + (reason === 'timeout' ? (qeLang === 'en' ? 'Timed out' : 'Tidsavbrudd') : reason));
+      }
+      qePollTimer = waitForCfCheckRun(sha, token, onCfDone, onCfError);
     }
 
     function tryCommit(blobItems, deadline) {
@@ -1625,6 +1666,29 @@ setTimeout(function() {
         }
       });
   });
+
+  function waitForCfCheckRun(sha, tok, onSuccess, onFailure) {
+    var h = { 'Accept': 'application/vnd.github+json' };
+    if (tok) h['Authorization'] = 'token ' + tok;
+    var attempts = 0;
+    var timer = setInterval(function() {
+      if (++attempts > 80) { clearInterval(timer); onFailure('timeout'); return; }
+      fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/commits/' + sha + '/check-runs',
+            { headers: h, cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var cfRun = (data.check_runs || []).find(function(r) {
+            return r.name === 'Cloudflare Pages' && r.status === 'completed';
+          });
+          if (!cfRun) return;
+          clearInterval(timer);
+          if (cfRun.conclusion === 'success') onSuccess();
+          else onFailure(cfRun.conclusion);
+        })
+        .catch(function() {});
+    }, 5000);
+    return timer;
+  }
 
   function pollQeBuild(startTime, oldEtag) {
     if (qePollTimer) { clearInterval(qePollTimer); qePollTimer = null; }
@@ -1739,10 +1803,14 @@ setTimeout(function() {
       .then(function(r) { return r.json(); })
       .then(function(tree) { return fetch(apiBase + '/git/commits', { method: 'POST', headers: h, body: JSON.stringify({ message: message, tree: tree.sha, parents: [headSha] }) }); })
       .then(function(r) { return r.json(); })
-      .then(function(commit) { return fetch(apiBase + '/git/refs/heads/main', { method: 'PATCH', headers: h, body: JSON.stringify({ sha: commit.sha }) }); })
-      .then(function(r) {
-        if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); });
-        return r.json();
+      .then(function(commit) {
+        var newSha = commit.sha;
+        return fetch(apiBase + '/git/refs/heads/main', { method: 'PATCH', headers: h, body: JSON.stringify({ sha: newSha }) })
+          .then(function(r) {
+            if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); });
+            return r.json();
+          })
+          .then(function() { return { sha: newSha, repo: repo }; });
       });
   }
 })();
