@@ -19,7 +19,12 @@ function getStoredToken() {
 function storeToken(token) {
   try {
     localStorage.setItem(SAMT_TOKEN_KEY, token);
-    localStorage.removeItem('samt-bu-gh-user'); // rydd bort cache ved ny innlogging
+    localStorage.removeItem('samt-bu-gh-user');
+    localStorage.removeItem('samt-bu-gh-name');
+    localStorage.removeItem('samt-bu-gh-avatar');
+    ['samt-bu-docs','team-architecture','samt-bu-drafts','solution-samt-bu-docs'].forEach(function(r) {
+      try { localStorage.removeItem('samtu-perm-' + r); } catch(e2) {}
+    });
   } catch(e) {}
 }
 
@@ -89,7 +94,7 @@ function checkBuildInProgress(filePath, callback) {
 // Hent og cache innlogget GitHub-brukernavn
 function fetchCurrentUser(callback) {
   var cached = localStorage.getItem('samt-bu-gh-user');
-  if (cached) { callback(cached); return; }
+  if (cached) { updateAvatarDisplay(); callback(cached); return; }
   var token = getStoredToken();
   if (!token) { callback(null); return; }
   fetch('https://api.github.com/user', {
@@ -97,13 +102,70 @@ function fetchCurrentUser(callback) {
   })
     .then(function(r) { return r.json(); })
     .then(function(u) {
-      var login = u.login || null;
-      var name  = u.name  || null;
-      if (login) { try { localStorage.setItem('samt-bu-gh-user', login); } catch(e) {} }
-      if (name)  { try { localStorage.setItem('samt-bu-gh-name',  name);  } catch(e) {} }
+      var login  = u.login      || null;
+      var name   = u.name       || null;
+      var avatar = u.avatar_url || null;
+      if (login)  { try { localStorage.setItem('samt-bu-gh-user',   login);  } catch(e) {} }
+      if (name)   { try { localStorage.setItem('samt-bu-gh-name',   name);   } catch(e) {} }
+      if (avatar) { try { localStorage.setItem('samt-bu-gh-avatar', avatar); } catch(e) {} }
+      updateAvatarDisplay();
       callback(login);
     })
     .catch(function() { callback(null); });
+}
+
+function updateAvatarDisplay() {
+  var img = document.getElementById('samtu-user-avatar');
+  if (!img) return;
+  var avatar = localStorage.getItem('samt-bu-gh-avatar');
+  var login  = localStorage.getItem('samt-bu-gh-user');
+  if (avatar && login) {
+    img.src = avatar;
+    img.title = login;
+    img.style.display = 'inline-block';
+  } else {
+    img.style.display = 'none';
+  }
+}
+
+function checkCollaboratorPermission(repo, callback) {
+  var cacheKey = 'samtu-perm-' + repo;
+  var ttl = 3600000; // 1 hour
+  try {
+    var cached = JSON.parse(localStorage.getItem(cacheKey));
+    if (cached && (Date.now() - cached.ts) < ttl) { callback(cached.canWrite); return; }
+  } catch(e) {}
+  var login = localStorage.getItem('samt-bu-gh-user');
+  var token = getStoredToken();
+  if (!login || !token) { callback(false); return; }
+  fetch('https://api.github.com/repos/SAMT-X/' + repo + '/collaborators/' + login, {
+    headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
+  })
+    .then(function(r) {
+      var canWrite = (r.status === 204);
+      try { localStorage.setItem(cacheKey, JSON.stringify({ canWrite: canWrite, ts: Date.now() })); } catch(e) {}
+      callback(canWrite);
+    })
+    .catch(function() { callback(false); });
+}
+
+function makePrBranch() {
+  var login = (localStorage.getItem('samt-bu-gh-user') || 'user').replace(/[^a-zA-Z0-9._-]/g, '-');
+  var now = new Date();
+  var pad = function(n) { return String(n).padStart(2, '0'); };
+  return login + '/suggest-' + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) +
+    '-' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
+}
+
+function createPr(token, repo, branchName, title, body) {
+  return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/pulls', {
+    method: 'POST',
+    headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: title, body: body || '', head: branchName, base: 'main' })
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); });
+    return r.json();
+  });
 }
 
 // Persistent bygg-sporing på tvers av sidenavigering (localStorage)
@@ -379,6 +441,7 @@ function loadTiptap(callback) {
 
 // Pre-hent GitHub-brukernavn hvis innlogget (popuperer cache for bruk ved lagring)
 if (getStoredToken() && !localStorage.getItem('samt-bu-gh-user')) fetchCurrentUser(function() {});
+updateAvatarDisplay();
 
 // Gjenopprett pending-spinner ved sideinnlasting og tell ned per ferdig bygg
 setTimeout(function() {
@@ -508,6 +571,7 @@ setTimeout(function() {
   var toggle = document.getElementById('edit-toggle');
   var menu = document.getElementById('edit-menu');
   if (!toggle || !menu) return;
+  var _permChecked = false;
   toggle.addEventListener('click', function(e) {
     e.stopPropagation();
     menu.classList.toggle('open');
@@ -515,6 +579,30 @@ setTimeout(function() {
     var temaMenu = document.getElementById('tema-menu');
     if (langMenu) langMenu.classList.remove('open');
     if (temaMenu) temaMenu.classList.remove('open');
+    if (!_permChecked && menu.classList.contains('open') && getStoredToken()) {
+      var repo = toggle.dataset.repo;
+      if (repo) {
+        _permChecked = true;
+        checkCollaboratorPermission(repo, function(canWrite) {
+          if (!canWrite) {
+            var isEn = document.documentElement.lang === 'en';
+            menu.querySelectorAll('li a span').forEach(function(span) {
+              var t = span.textContent;
+              if (t === 'Rediger dette kapitlet') span.textContent = 'Foreslå endring av dette kapitlet';
+              else if (t === 'Edit this chapter') span.textContent = 'Suggest change to this chapter';
+              else if (t === 'Nytt kapittel etter dette') span.textContent = 'Foreslå nytt kapittel etter dette';
+              else if (t === 'New chapter after this') span.textContent = 'Suggest new chapter after this';
+              else if (t === 'Nytt underkapittel') span.textContent = 'Foreslå nytt underkapittel';
+              else if (t === 'New sub-chapter') span.textContent = 'Suggest new sub-chapter';
+              else if (t === 'Slett denne siden') span.textContent = 'Foreslå sletting av denne siden';
+              else if (t === 'Delete this page') span.textContent = 'Suggest deletion of this page';
+            });
+            var toggleSpan = toggle.querySelector('.tema-active');
+            if (toggleSpan) toggleSpan.textContent = isEn ? 'Suggest' : 'Foreslå';
+          }
+        });
+      }
+    }
   });
   document.addEventListener('click', function() {
     menu.classList.remove('open');
@@ -835,43 +923,68 @@ setTimeout(function() {
 
     // Hent søskenfiler og last opp bilder parallelt – alt i én commit (retry ved konflikt)
     var imgDir = npParentPath + '/' + slug;
-    function tryNpCommit(attemptsLeft) {
+    function tryNpCommit(attemptsLeft, targetBranch) {
       return Promise.all([
         weightInt ? fetchSiblingWeightUpdates(token, npRepo, npParentPath, weightInt, slug) : Promise.resolve([]),
         uploadImageBlobs(token, npRepo, imgDir, npImages)
       ]).then(function(results) {
-        return createFilesInOneCommit(token, npRepo, newFiles.concat(results[0]), commitMsg, results[1]);
+        return createFilesInOneCommit(token, npRepo, newFiles.concat(results[0]), commitMsg, results[1], targetBranch);
       }).catch(function(err) {
-        if (err.message === 'Update is not a fast forward' && attemptsLeft > 0) {
+        if (err.message === 'Update is not a fast forward' && !targetBranch && attemptsLeft > 0) {
           setNpStatus(npLang === 'en' ? 'Retrying…' : 'Prøver på nytt…');
           return new Promise(function(res) { setTimeout(res, 1500); })
-            .then(function() { return tryNpCommit(attemptsLeft - 1); });
+            .then(function() { return tryNpCommit(attemptsLeft - 1, targetBranch); });
         }
         throw err;
       });
     }
-    tryNpCommit(2)
-      .then(function() {
-        npTitle = titleNb;
-        if (npMode === 'child') {
-          npNewPageUrl = npCurrentPermalink.replace(/\/?$/, '/') + slug + '/';
-        } else {
-          var parentUrl = npCurrentPermalink.replace(/\/[^\/]+\/?$/, '/');
-          npNewPageUrl = parentUrl + slug + '/';
-        }
-        showNpBuildPanel();
-        samtuIncrementPending();
-        npPollBuild(startTime);
-      })
-      .catch(function(err) {
-        showMsg('error', 'Feil: ' + err.message);
-        submitBtn.disabled = false;
-        submitBtn.style.background = '';
-        submitBtn.style.cursor = '';
-        submitBtn.textContent = npMode === 'child'
-          ? (npLang === 'en' ? 'Create sub-chapter' : 'Opprett underkapittel')
-          : (npLang === 'en' ? 'Create page' : 'Opprett side');
-      });
+    checkCollaboratorPermission(npRepo, function(canWrite) {
+      var branchName = canWrite ? null : makePrBranch();
+      tryNpCommit(2, branchName)
+        .then(function() {
+          if (canWrite) {
+            npTitle = titleNb;
+            if (npMode === 'child') {
+              npNewPageUrl = npCurrentPermalink.replace(/\/?$/, '/') + slug + '/';
+            } else {
+              var parentUrl = npCurrentPermalink.replace(/\/[^\/]+\/?$/, '/');
+              npNewPageUrl = parentUrl + slug + '/';
+            }
+            showNpBuildPanel();
+            samtuIncrementPending();
+            npPollBuild(startTime);
+          } else {
+            var prTitle = (npLang === 'en' ? 'Suggest new page: ' : 'Foreslår ny side: ') + titleNb;
+            var login = localStorage.getItem('samt-bu-gh-user') || 'unknown';
+            var prBody = npLang === 'en'
+              ? 'New page suggested by @' + login + ' via SAMT-BU Docs editor.'
+              : 'Ny side foreslått av @' + login + ' via SAMT-BU Docs redigeringsgrensesnitt.';
+            return createPr(token, npRepo, branchName, prTitle, prBody)
+              .then(function(pr) {
+                setNpStatus(npLang === 'en' ? '\u2713 Pull request sent' : '\u2713 Pull request sendt');
+                submitBtn.textContent = npLang === 'en' ? 'Sent' : 'Sendt';
+                submitBtn.style.background = '#2d7a3a';
+                submitBtn.style.cursor = 'default';
+                var cancelBtn = document.getElementById('np-cancel');
+                if (cancelBtn) cancelBtn.textContent = npLang === 'en' ? 'Close' : 'Lukk';
+                if (pr && pr.html_url) {
+                  var statusEl = document.getElementById('np-status-text');
+                  if (statusEl) statusEl.innerHTML = (npLang === 'en' ? '\u2713 PR: ' : '\u2713 PR: ') +
+                    '<a href="' + pr.html_url + '" target="_blank" style="color:#fff; text-decoration:underline;">#' + pr.number + '</a>';
+                }
+              });
+          }
+        })
+        .catch(function(err) {
+          showMsg('error', (npLang === 'en' ? 'Error: ' : 'Feil: ') + err.message);
+          submitBtn.disabled = false;
+          submitBtn.style.background = '';
+          submitBtn.style.cursor = '';
+          submitBtn.textContent = npMode === 'child'
+            ? (npLang === 'en' ? 'Create sub-chapter' : 'Opprett underkapittel')
+            : (npLang === 'en' ? 'Create page' : 'Opprett side');
+        });
+    });
   });
 
   // Returnerer liste over filer som trenger vektjustering (committer ikke selv)
@@ -922,7 +1035,7 @@ setTimeout(function() {
 
   // Oppretter flere filer i én enkelt commit via Git Data API (unngår dobbel Hugo-bygg og race condition)
   // blobItems: pre-uploadede binærfiler med SHA (valgfri, f.eks. bilder)
-  function createFilesInOneCommit(token, repo, files, commitMsg, blobItems) {
+  function createFilesInOneCommit(token, repo, files, commitMsg, blobItems, targetBranch) {
     var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
     var headers = {
       'Authorization': 'token ' + token,
@@ -930,10 +1043,16 @@ setTimeout(function() {
       'Content-Type': 'application/json'
     };
     var currentSha;
+    var branch = targetBranch || 'main';
     return fetch(apiBase + '/git/ref/heads/main', { headers: headers, cache: 'no-store' })
       .then(function(r) { return r.json(); })
       .then(function(ref) {
         currentSha = ref.object.sha;
+        if (targetBranch) {
+          return fetch(apiBase + '/git/refs', { method: 'POST', headers: headers, body: JSON.stringify({ ref: 'refs/heads/' + targetBranch, sha: currentSha }) })
+            .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); }); })
+            .then(function() { return fetch(apiBase + '/git/commits/' + currentSha, { headers: headers }); });
+        }
         return fetch(apiBase + '/git/commits/' + currentSha, { headers: headers });
       })
       .then(function(r) { return r.json(); })
@@ -955,7 +1074,7 @@ setTimeout(function() {
       })
       .then(function(r) { return r.json(); })
       .then(function(commit) {
-        return fetch(apiBase + '/git/refs/heads/main', {
+        return fetch(apiBase + '/git/refs/heads/' + branch, {
           method: 'PATCH', headers: headers,
           body: JSON.stringify({ sha: commit.sha })
         });
@@ -1165,46 +1284,76 @@ setTimeout(function() {
     var nbPath = delDirPath + '/_index.nb.md';
     var enPath = delDirPath + '/_index.en.md';
 
-    function tryDelCommit(attemptsLeft) {
-      var doDelete = delChildCount > 0
-        ? deleteDirectoryRecursive(token, delRepo, delDirPath, 'Slett side: ' + delTitle)
-        : deleteFilesInOneCommit(token, delRepo, [nbPath, enPath], 'Slett side: ' + delTitle);
-      return doDelete.catch(function(err) {
-        if (err.message === 'Update is not a fast forward' && attemptsLeft > 0) {
-          return new Promise(function(res) { setTimeout(res, 1500); })
-            .then(function() { return tryDelCommit(attemptsLeft - 1); });
-        }
-        throw err;
-      });
-    }
-    tryDelCommit(2)
-      .then(function() {
-        showBuildPanel();
-        samtuIncrementPending();
-        pollBuild(startTime);
-      })
-      .catch(function(err) {
-        document.getElementById('del-confirm-section-2').style.display = 'none';
-        document.getElementById('del-confirm-section').style.display = 'block';
-        var errEl = document.getElementById('del-error');
-        errEl.style.display = 'block';
-        errEl.textContent = (delLang === 'en' ? 'Error: ' : 'Feil: ') + err.message;
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = delLang === 'en' ? 'Delete page' : 'Slett siden';
-        cancelBtn.disabled = false;
-        finalBtn.disabled = false;
-        backBtn.disabled = false;
-      });
+    checkCollaboratorPermission(delRepo, function(canWrite) {
+      var branchName = canWrite ? null : makePrBranch();
+      var commitMsg = (delLang === 'en' ? 'Delete page: ' : 'Slett side: ') + delTitle;
+
+      function tryDelCommit(attemptsLeft) {
+        var doDelete = delChildCount > 0
+          ? deleteDirectoryRecursive(token, delRepo, delDirPath, commitMsg, branchName)
+          : deleteFilesInOneCommit(token, delRepo, [nbPath, enPath], commitMsg, branchName);
+        return doDelete.catch(function(err) {
+          if (err.message === 'Update is not a fast forward' && !branchName && attemptsLeft > 0) {
+            return new Promise(function(res) { setTimeout(res, 1500); })
+              .then(function() { return tryDelCommit(attemptsLeft - 1); });
+          }
+          throw err;
+        });
+      }
+      tryDelCommit(2)
+        .then(function() {
+          if (canWrite) {
+            showBuildPanel();
+            samtuIncrementPending();
+            pollBuild(startTime);
+          } else {
+            var prTitle = (delLang === 'en' ? 'Suggest deletion: ' : 'Foreslår sletting: ') + delTitle;
+            var login = localStorage.getItem('samt-bu-gh-user') || 'unknown';
+            var prBody = delLang === 'en'
+              ? 'Deletion suggested by @' + login + ' via SAMT-BU Docs.'
+              : 'Sletting foreslått av @' + login + ' via SAMT-BU Docs.';
+            return createPr(token, delRepo, branchName, prTitle, prBody)
+              .then(function(pr) {
+                showBuildPanel();
+                document.getElementById('del-heading').textContent =
+                  delLang === 'en' ? 'Suggestion sent!' : 'Forslag sendt!';
+                var buildText = document.getElementById('del-build-status-text');
+                if (buildText) buildText.innerHTML = (delLang === 'en' ? 'Pull request created: ' : 'Pull request opprettet: ') +
+                  (pr && pr.html_url ? '<a href="' + pr.html_url + '" target="_blank">#' + pr.number + '</a>' : '');
+                var doneBtn = document.getElementById('del-panel-done');
+                if (doneBtn) doneBtn.style.display = 'inline-block';
+              });
+          }
+        })
+        .catch(function(err) {
+          document.getElementById('del-confirm-section-2').style.display = 'none';
+          document.getElementById('del-confirm-section').style.display = 'block';
+          var errEl = document.getElementById('del-error');
+          errEl.style.display = 'block';
+          errEl.textContent = (delLang === 'en' ? 'Error: ' : 'Feil: ') + err.message;
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = delLang === 'en' ? 'Delete page' : 'Slett siden';
+          cancelBtn.disabled = false;
+          finalBtn.disabled = false;
+          backBtn.disabled = false;
+        });
+    });
   }
 
-  function deleteFilesInOneCommit(token, repo, paths, commitMsg) {
+  function deleteFilesInOneCommit(token, repo, paths, commitMsg, targetBranch) {
     var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
     var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
     var headSha;
+    var branch = targetBranch || 'main';
     return fetch(apiBase + '/git/ref/heads/main', { headers: h, cache: 'no-store' })
       .then(function(r) { return r.json(); })
       .then(function(ref) {
         headSha = ref.object.sha;
+        if (targetBranch) {
+          return fetch(apiBase + '/git/refs', { method: 'POST', headers: h, body: JSON.stringify({ ref: 'refs/heads/' + targetBranch, sha: headSha }) })
+            .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); }); })
+            .then(function() { return fetch(apiBase + '/git/commits/' + headSha, { headers: h }); });
+        }
         return fetch(apiBase + '/git/commits/' + headSha, { headers: h });
       })
       .then(function(r) { return r.json(); })
@@ -1218,7 +1367,7 @@ setTimeout(function() {
       })
       .then(function(r) { return r.json(); })
       .then(function(newCommit) {
-        return fetch(apiBase + '/git/refs/heads/main', { method: 'PATCH', headers: h, body: JSON.stringify({ sha: newCommit.sha }) });
+        return fetch(apiBase + '/git/refs/heads/' + branch, { method: 'PATCH', headers: h, body: JSON.stringify({ sha: newCommit.sha }) });
       })
       .then(function(r) {
         if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); });
@@ -1226,43 +1375,48 @@ setTimeout(function() {
       });
   }
 
-  function deleteDirectoryRecursive(token, repo, dirPath, commitMsg) {
+  function deleteDirectoryRecursive(token, repo, dirPath, commitMsg, targetBranch) {
     var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
     var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
-    // Get the full tree recursively
+    var branch = targetBranch || 'main';
     return fetch(apiBase + '/git/refs/heads/main', { headers: h, cache: 'no-store' })
       .then(function(r) { return r.json(); })
       .then(function(ref) {
         var headSha = ref.object.sha;
-        return fetch(apiBase + '/git/trees/' + headSha + '?recursive=1', { headers: h, cache: 'no-store' })
-          .then(function(r) { return r.json(); })
-          .then(function(tree) {
-            // Find all blobs under dirPath
-            var prefix = dirPath.replace(/\/$/, '') + '/';
-            var deletions = tree.tree
-              .filter(function(item) { return item.type === 'blob' && item.path.indexOf(prefix) === 0; })
-              .map(function(item) { return { path: item.path, mode: item.mode, type: item.type, sha: null }; });
-            if (deletions.length === 0) return;
-            return fetch(apiBase + '/git/trees', {
-              method: 'POST', headers: h,
-              body: JSON.stringify({ base_tree: headSha, tree: deletions })
-            })
-              .then(function(r) { return r.json(); })
-              .then(function(newTree) {
-                return fetch(apiBase + '/git/commits', {
-                  method: 'POST', headers: h,
-                  body: JSON.stringify({ message: commitMsg, tree: newTree.sha, parents: [headSha] })
-                });
+        var branchPromise = targetBranch
+          ? fetch(apiBase + '/git/refs', { method: 'POST', headers: h, body: JSON.stringify({ ref: 'refs/heads/' + targetBranch, sha: headSha }) })
+              .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); }); })
+          : Promise.resolve();
+        return branchPromise.then(function() {
+          return fetch(apiBase + '/git/trees/' + headSha + '?recursive=1', { headers: h, cache: 'no-store' })
+            .then(function(r) { return r.json(); })
+            .then(function(tree) {
+              var prefix = dirPath.replace(/\/$/, '') + '/';
+              var deletions = tree.tree
+                .filter(function(item) { return item.type === 'blob' && item.path.indexOf(prefix) === 0; })
+                .map(function(item) { return { path: item.path, mode: item.mode, type: item.type, sha: null }; });
+              if (deletions.length === 0) return;
+              return fetch(apiBase + '/git/trees', {
+                method: 'POST', headers: h,
+                body: JSON.stringify({ base_tree: headSha, tree: deletions })
               })
-              .then(function(r) { return r.json(); })
-              .then(function(commit) {
-                return fetch(apiBase + '/git/refs/heads/main', {
-                  method: 'PATCH', headers: h,
-                  body: JSON.stringify({ sha: commit.sha })
-                });
-              })
-              .then(function(r) { return r.json(); });
-          });
+                .then(function(r) { return r.json(); })
+                .then(function(newTree) {
+                  return fetch(apiBase + '/git/commits', {
+                    method: 'POST', headers: h,
+                    body: JSON.stringify({ message: commitMsg, tree: newTree.sha, parents: [headSha] })
+                  });
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(commit) {
+                  return fetch(apiBase + '/git/refs/heads/' + branch, {
+                    method: 'PATCH', headers: h,
+                    body: JSON.stringify({ sha: commit.sha })
+                  });
+                })
+                .then(function(r) { return r.json(); });
+            });
+        });
       });
   }
 
@@ -1630,6 +1784,18 @@ setTimeout(function() {
       pollQeBuild(startTime, qeOldEtag);
     }
 
+    function onPrSuccess(pr) {
+      var statusEl = document.getElementById('qe-status-text');
+      if (statusEl) statusEl.innerHTML = (qeLang === 'en' ? '\u2713 Pull request: ' : '\u2713 Pull request: ') +
+        (pr && pr.html_url ? '<a href="' + pr.html_url + '" target="_blank" style="color:#fff; text-decoration:underline;">#' + pr.number + '</a>' : '');
+      saveBtn.disabled = true;
+      saveBtn.textContent = qeLang === 'en' ? 'Sent' : 'Sendt';
+      saveBtn.style.background = '#2d7a3a';
+      saveBtn.style.cursor = 'default';
+      var cancelBtn = document.getElementById('qe-cancel-btn');
+      if (cancelBtn) cancelBtn.textContent = qeLang === 'en' ? 'Close' : 'Lukk';
+    }
+
     function tryCommit(blobItems, deadline) {
       return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg)
         .catch(function(err) {
@@ -1642,24 +1808,40 @@ setTimeout(function() {
         });
     }
 
-    uploadQeBlobs(token, qeRepo, imgDir, qeImages)
-      .then(function(blobItems) { return tryCommit(blobItems, Date.now() + 120000); })
-      .then(onSaveSuccess)
-      .catch(function(err) {
-        if (overlay.style.display !== 'none') {
-          saveBtn.disabled = false;
-          saveBtn.style.background = '';
-          saveBtn.style.cursor = '';
-          saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
-          var msg = err.message;
-          if (msg === 'Update is not a fast forward') {
-            msg = qeLang === 'en'
-              ? 'Conflict: page was changed by others. Try again.'
-              : 'Konflikt: siden ble endret av andre. Prøv igjen.';
+    checkCollaboratorPermission(qeRepo, function(canWrite) {
+      uploadQeBlobs(token, qeRepo, imgDir, qeImages)
+        .then(function(blobItems) {
+          if (canWrite) {
+            return tryCommit(blobItems, Date.now() + 120000).then(onSaveSuccess);
+          } else {
+            var branchName = makePrBranch();
+            var cleanTitle = (typeof qePageTitle === 'string') ? qePageTitle.replace(/^"(.*)"$/, '$1') : qePageTitle;
+            var prTitle = (qeLang === 'en' ? 'Suggest change: ' : 'Foreslår endring: ') + cleanTitle;
+            var login = localStorage.getItem('samt-bu-gh-user') || 'unknown';
+            var prBody = qeLang === 'en'
+              ? 'Suggested by @' + login + ' via SAMT-BU Docs editor.'
+              : 'Foreslått av @' + login + ' via SAMT-BU Docs redigeringsgrensesnitt.';
+            return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg, branchName)
+              .then(function() { return createPr(token, qeRepo, branchName, prTitle, prBody); })
+              .then(onPrSuccess);
           }
-          setStatus('⚠ ' + msg);
-        }
-      });
+        })
+        .catch(function(err) {
+          if (overlay.style.display !== 'none') {
+            saveBtn.disabled = false;
+            saveBtn.style.background = '';
+            saveBtn.style.cursor = '';
+            saveBtn.textContent = qeLang === 'en' ? 'Retry' : 'Prøv igjen';
+            var msg = err.message;
+            if (msg === 'Update is not a fast forward') {
+              msg = qeLang === 'en'
+                ? 'Conflict: page was changed by others. Try again.'
+                : 'Konflikt: siden ble endret av andre. Prøv igjen.';
+            }
+            setStatus('⚠ ' + msg);
+          }
+        });
+    });
   });
 
   function pollQeBuild(startTime, oldEtag) {
@@ -1759,13 +1941,22 @@ setTimeout(function() {
     }));
   }
 
-  function createQeCommit(token, repo, filePath, content, blobItems, message) {
+  function createQeCommit(token, repo, filePath, content, blobItems, message, targetBranch) {
     var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
     var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
     var headSha;
+    var branch = targetBranch || 'main';
     return fetch(apiBase + '/git/ref/heads/main', { headers: h, cache: 'no-store' })
       .then(function(r) { return r.json(); })
-      .then(function(ref) { headSha = ref.object.sha; return fetch(apiBase + '/git/commits/' + headSha, { headers: h, cache: 'no-store' }); })
+      .then(function(ref) {
+        headSha = ref.object.sha;
+        if (targetBranch) {
+          return fetch(apiBase + '/git/refs', { method: 'POST', headers: h, body: JSON.stringify({ ref: 'refs/heads/' + targetBranch, sha: headSha }) })
+            .then(function(r) { if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); }); })
+            .then(function() { return fetch(apiBase + '/git/commits/' + headSha, { headers: h, cache: 'no-store' }); });
+        }
+        return fetch(apiBase + '/git/commits/' + headSha, { headers: h, cache: 'no-store' });
+      })
       .then(function(r) { return r.json(); })
       .then(function(commit) {
         var items = [{ path: filePath, mode: '100644', type: 'blob', content: content }].concat(blobItems || []);
@@ -1774,7 +1965,7 @@ setTimeout(function() {
       .then(function(r) { return r.json(); })
       .then(function(tree) { return fetch(apiBase + '/git/commits', { method: 'POST', headers: h, body: JSON.stringify({ message: message, tree: tree.sha, parents: [headSha] }) }); })
       .then(function(r) { return r.json(); })
-      .then(function(commit) { return fetch(apiBase + '/git/refs/heads/main', { method: 'PATCH', headers: h, body: JSON.stringify({ sha: commit.sha }) }); })
+      .then(function(commit) { return fetch(apiBase + '/git/refs/heads/' + branch, { method: 'PATCH', headers: h, body: JSON.stringify({ sha: commit.sha }) }); })
       .then(function(r) {
         if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); });
         return r.json();
