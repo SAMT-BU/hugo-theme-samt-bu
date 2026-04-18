@@ -1584,8 +1584,9 @@ setTimeout(function() {
         var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
         if (m) qeOldEtag = m[1];
         else qeOldEtag = qeOldBuild; // fallback til live DOM-verdi
+        console.log('[samtu] initial fetch: qeOldEtag set to', qeOldEtag, '(dom was:', qeOldBuild, ')');
       })
-      .catch(function() { qeOldEtag = qeOldBuild; });
+      .catch(function() { qeOldEtag = qeOldBuild; console.log('[samtu] initial fetch failed, fallback to', qeOldBuild); });
 
     function onSaveSuccess(commitResult) {
       setStatus(qeLang === 'en' ? 'Saved! Updating site…' : 'Lagret! Nettstedet oppdateres…');
@@ -1667,6 +1668,7 @@ setTimeout(function() {
     var lang = qeLang;
     var url = qePermalink;
     var attempts = 0;
+    console.log('[samtu] pollQeBuild start – oldEtag:', oldEtag, 'url:', url, 'startTime:', new Date(startTime).toISOString());
 
     function doNav() { window.location.href = url + '?_=' + Date.now(); }
 
@@ -1734,9 +1736,15 @@ setTimeout(function() {
           var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
           var newEtag = m ? m[1] : null;
           var newBuildTime = newEtag ? new Date(newEtag).getTime() : 0;
+          var fresh = newBuildTime >= startTime;
+          var changed = !oldEtag || newEtag !== oldEtag;
+          if (attempts === 1 || attempts % 5 === 0) {
+            console.log('[samtu] poll #' + attempts + ' newEtag:', newEtag, 'newBuildTime>=startTime:', fresh, 'changed:', changed);
+          }
           // Ferdig om: meta-tag finnes, er ny nok (>= saveTime), og er endret fra gammel (eller gammel var ukjent)
-          if (newEtag && newBuildTime >= startTime && (!oldEtag || newEtag !== oldEtag)) {
+          if (newEtag && fresh && changed) {
             var cfSec = Math.round((Date.now() - startTime) / 1000);
+            console.log('[samtu] CF Pages build detected! cfSec:', cfSec);
             try { localStorage.setItem('samtu-cf-duration', JSON.stringify({ startTime: startTime, duration: cfSec })); } catch(e) {}
             samtuPlaySuccess(); onBuildDone();
           } else {
