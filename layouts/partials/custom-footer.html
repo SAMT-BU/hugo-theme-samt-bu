@@ -1692,64 +1692,59 @@ setTimeout(function() {
       }
     }
 
-    if (oldEtag) {
-      samtuPlayStart();
-      // ETag-deteksjon: vent til Cloudflare serverer ny versjon (same-origin HEAD-poll)
-      var _checkingApi = false;
-      qePollTimer = setInterval(function() {
-        if (++attempts > 180) {
-          if (_checkingApi) return; // Unngå parallelle API-kall
-          _checkingApi = true;
-          // Sjekk faktisk byggestatus – rapporter kun feil hvis GitHub bekrefter det
-          var _tok = getStoredToken();
-          var _h = { 'Accept': 'application/vnd.github+json' };
-          if (_tok) _h['Authorization'] = 'token ' + _tok;
-          fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: _h })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              _checkingApi = false;
-              var run = null;
-              if (data.workflow_runs) {
-                for (var i = 0; i < data.workflow_runs.length; i++) {
-                  if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) {
-                    run = data.workflow_runs[i]; break;
-                  }
+    samtuPlayStart();
+    // Meta-tag-poll: vent til CF Pages serverer ny samtu-build-verdi (1s intervall)
+    var _checkingApi = false;
+    qePollTimer = setInterval(function() {
+      if (++attempts > 180) {
+        if (_checkingApi) return;
+        _checkingApi = true;
+        var _tok = getStoredToken();
+        var _h = { 'Accept': 'application/vnd.github+json' };
+        if (_tok) _h['Authorization'] = 'token ' + _tok;
+        fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: _h })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            _checkingApi = false;
+            var run = null;
+            if (data.workflow_runs) {
+              for (var i = 0; i < data.workflow_runs.length; i++) {
+                if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) {
+                  run = data.workflow_runs[i]; break;
                 }
               }
-              if (!run) { clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); return; }
-              if (run.status === 'in_progress' || run.status === 'queued') {
-                attempts = 0; // Bygg pågår – nullstill teller og fortsett ETag-poll
-              } else if (run.status === 'completed' && run.conclusion === 'success') {
-                clearInterval(qePollTimer); qePollTimer = null; samtuPlaySuccess(); onBuildDone();
-              } else if (run.status === 'completed' && run.conclusion === 'cancelled') {
-                attempts = 0; setStatus(lang === 'en' ? 'Cancelled – waiting for new build…' : 'Avbrutt – venter på nytt bygg…');
-              } else {
-                clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ ' + (run.conclusion || 'Tidsavbrudd'));
-              }
-            })
-            .catch(function() { _checkingApi = false; clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); });
-          return;
-        }
-        fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { cache: 'no-store' })
-          .then(function(r) { return r.text(); })
-          .then(function(html) {
-            var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
-            var newEtag = m ? m[1] : null;
-            // Kun tell som ferdig om det er vår build: meta-tag-dato >= save-tidspunkt
-            var newBuildTime = newEtag ? new Date(newEtag).getTime() : 0;
-            if (newEtag && newEtag !== oldEtag && newBuildTime >= startTime) { samtuPlaySuccess(); onBuildDone(); }
-            else setStatus(lang === 'en' ? 'Updating site (' + attempts + 's)…' : 'Nettsted oppdateres (' + attempts + ' sek)…');
+            }
+            if (!run) { clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); return; }
+            if (run.status === 'in_progress' || run.status === 'queued') {
+              attempts = 0;
+            } else if (run.status === 'completed' && run.conclusion === 'success') {
+              clearInterval(qePollTimer); qePollTimer = null; samtuPlaySuccess(); onBuildDone();
+            } else if (run.status === 'completed' && run.conclusion === 'cancelled') {
+              attempts = 0; setStatus(lang === 'en' ? 'Cancelled – waiting for new build…' : 'Avbrutt – venter på nytt bygg…');
+            } else {
+              clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ ' + (run.conclusion || 'Tidsavbrudd'));
+            }
           })
-          .catch(function() { setStatus('Venter…'); });
-      }, 1000);
-    } else {
-      // Fallback: GitHub Actions API (2s intervall)
-      qePollTimer = startGhPoll(startTime,
-        onBuildDone,
-        function onError(reason) { clearInterval(qePollTimer); qePollTimer = null; setStatus('⚠ ' + reason); },
-        function onStatus(msg) { setStatus(msg); }
-      );
-    }
+          .catch(function() { _checkingApi = false; clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); });
+        return;
+      }
+      fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { cache: 'no-store' })
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+          var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
+          var newEtag = m ? m[1] : null;
+          var newBuildTime = newEtag ? new Date(newEtag).getTime() : 0;
+          // Ferdig om: meta-tag finnes, er ny nok (>= saveTime), og er endret fra gammel (eller gammel var ukjent)
+          if (newEtag && newBuildTime >= startTime && (!oldEtag || newEtag !== oldEtag)) {
+            var cfSec = Math.round((Date.now() - startTime) / 1000);
+            try { localStorage.setItem('samtu-cf-duration', JSON.stringify({ startTime: startTime, duration: cfSec })); } catch(e) {}
+            samtuPlaySuccess(); onBuildDone();
+          } else {
+            setStatus(lang === 'en' ? 'Updating site (' + attempts + 's)…' : 'Nettsted oppdateres (' + attempts + ' sek)…');
+          }
+        })
+        .catch(function() { setStatus('Venter…'); });
+    }, 1000);
   }
 
   function uploadQeBlobs(token, repo, dirPath, images) {
@@ -2114,7 +2109,15 @@ setTimeout(function() {
         time = isEn ? 'Superseded' : 'Avl\u00f8st';
       } else if (run.conclusion === 'success') {
         var durationMs = new Date(run.updated_at).getTime() - new Date(run.created_at).getTime();
-        time = fmtSec(Math.round(durationMs / 1000));
+        var ghSec = Math.round(durationMs / 1000);
+        var cfData = null;
+        try { cfData = JSON.parse(localStorage.getItem('samtu-cf-duration')); } catch(e) {}
+        var runStartMs = new Date(run.created_at).getTime();
+        if (cfData && Math.abs(cfData.startTime - runStartMs) < 60000) {
+          time = fmtSec(cfData.duration) + ' (CF)';
+        } else {
+          time = fmtSec(ghSec);
+        }
       } else {
         time = timeAgo(run.updated_at);
       }
