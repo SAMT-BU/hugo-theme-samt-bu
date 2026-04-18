@@ -416,15 +416,8 @@ setTimeout(function() {
         // (kansellerte avløste jobber teller ikke mot fullføring, men blokkerer ikke done)
         var allMyDone = (myActive === 0 && myCompletedTotal > 0);
 
-        // Spill av melding om kansellerte (avløste) kjøringer
         var prevSeenCancelled = p2.seenCancelled || 0;
         var newCancellations = myCancelledTotal - prevSeenCancelled;
-        if (newCancellations > 0 && !allMyDone) {
-          var combinedMsg = newCancellations === 1
-            ? 'Your documentation job was combined with the previous job'
-            : _numWord(newCancellations) + ' of your documentation jobs were combined with previous jobs';
-          samtuPlayStart(combinedMsg);
-        }
 
         var prevSeen = p2.seenCompleted || 0;
         var newCompletions = myCompletedTotal - prevSeen;
