@@ -1591,49 +1591,12 @@ setTimeout(function() {
       var w = document.getElementById('qe-build-warning');
       if (w) w.style.display = 'none';
       samtuIncrementPending();
-      var commitSha = commitResult && commitResult.sha || null;
-      if (commitResult && commitResult.repo !== 'samt-bu-docs' && commitSha) {
-        // Modulrepo: hent samt-bu-docs HEAD SHA for CF check-run-sporing
-        var mh = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
-        fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/git/ref/heads/main', { headers: mh, cache: 'no-store' })
-          .then(function(r) { return r.json(); })
-          .then(function(ref) { startCfTracking(startTime, ref.object && ref.object.sha || null); })
-          .catch(function() { startCfTracking(startTime, null); });
-      } else {
-        startCfTracking(startTime, commitSha);
-      }
+      startCfTracking(startTime);
     }
 
-    function startCfTracking(startTime, sha) {
-      if (!sha) { pollQeBuild(startTime, qeOldEtag); return; }
+    function startCfTracking(startTime) {
       samtuPlayStart();
-      var statusSecs = 0;
-      var statusTimer = setInterval(function() {
-        statusSecs += 5;
-        setStatus(qeLang === 'en' ? 'Updating site (' + statusSecs + 's)…' : 'Nettsted oppdateres (' + statusSecs + ' sek)…');
-      }, 5000);
-      function onCfDone() {
-        clearInterval(statusTimer);
-        if (qePollTimer) { clearInterval(qePollTimer); qePollTimer = null; }
-        samtuPlaySuccess();
-        samtuDecrementPending();
-        var secs = 3;
-        setStatus(qeLang === 'en' ? '✓ Done! Reloading in ' + secs + 's…' : '✓ Ferdig! Laster inn om ' + secs + ' sek…');
-        var btn = document.getElementById('qe-save-btn');
-        if (btn) {
-          btn.disabled = false; btn.style.background = ''; btn.style.cursor = '';
-          btn.textContent = qeLang === 'en' ? 'Reload now ↗' : 'Last inn nå ↗';
-          btn.onclick = function() { clearTimeout(navTimer); window.location.href = qePermalink + '?_=' + Date.now(); };
-        }
-        var navTimer = setTimeout(function() { window.location.href = qePermalink + '?_=' + Date.now(); }, secs * 1000);
-      }
-      function onCfError(reason) {
-        clearInterval(statusTimer);
-        if (qePollTimer) { clearInterval(qePollTimer); qePollTimer = null; }
-        samtuPlayFailure();
-        setStatus('⚠ ' + (reason === 'timeout' ? (qeLang === 'en' ? 'Timed out' : 'Tidsavbrudd') : reason));
-      }
-      qePollTimer = waitForCfCheckRun(sha, token, onCfDone, onCfError);
+      pollQeBuild(startTime, qeOldEtag);
     }
 
     function tryCommit(blobItems, deadline) {
@@ -1678,9 +1641,7 @@ setTimeout(function() {
             { headers: h, cache: 'no-store' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          var runs = data.check_runs || [];
-          console.log('[samtu] check-runs attempt', attempts, runs.map(function(r){return r.name+'|'+r.status+'|'+r.conclusion;}));
-          var cfRun = runs.find(function(r) {
+          var cfRun = (data.check_runs || []).find(function(r) {
             return r.name === 'Cloudflare Pages' && r.status === 'completed';
           });
           if (!cfRun) return;
@@ -1688,7 +1649,7 @@ setTimeout(function() {
           if (cfRun.conclusion === 'success') onSuccess();
           else onFailure(cfRun.conclusion);
         })
-        .catch(function(e) { console.log('[samtu] check-runs error', e); });
+        .catch(function() {});
     }, 5000);
     return timer;
   }
