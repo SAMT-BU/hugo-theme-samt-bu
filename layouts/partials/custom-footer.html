@@ -1678,7 +1678,9 @@ setTimeout(function() {
             { headers: h, cache: 'no-store' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
-          var cfRun = (data.check_runs || []).find(function(r) {
+          var runs = data.check_runs || [];
+          console.log('[samtu] check-runs attempt', attempts, runs.map(function(r){return r.name+'|'+r.status+'|'+r.conclusion;}));
+          var cfRun = runs.find(function(r) {
             return r.name === 'Cloudflare Pages' && r.status === 'completed';
           });
           if (!cfRun) return;
@@ -1686,7 +1688,7 @@ setTimeout(function() {
           if (cfRun.conclusion === 'success') onSuccess();
           else onFailure(cfRun.conclusion);
         })
-        .catch(function() {});
+        .catch(function(e) { console.log('[samtu] check-runs error', e); });
     }, 5000);
     return timer;
   }
