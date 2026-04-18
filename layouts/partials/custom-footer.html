@@ -1579,6 +1579,7 @@ setTimeout(function() {
       .catch(function() {});
 
     function onSaveSuccess(commitResult) {
+      console.log('[samtu] onSaveSuccess commitResult:', JSON.stringify(commitResult));
       setStatus(qeLang === 'en' ? 'Saved! Updating site…' : 'Lagret! Nettstedet oppdateres…');
       saveBtn.disabled = true;
       saveBtn.textContent = qeLang === 'en' ? 'Saved' : 'Lagret';
