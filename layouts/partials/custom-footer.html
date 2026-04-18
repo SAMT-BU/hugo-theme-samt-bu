@@ -116,7 +116,7 @@ function samtuIncrementPending() {
   var now = Date.now();
   var actor = localStorage.getItem('samt-bu-gh-user') || '';
   var newCount = (p.count || 0) + 1;
-  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: newCount, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0, actor: p.actor || actor })); } catch(e) {}
+  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: newCount, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0, seenCancelled: p.seenCancelled || 0, actor: p.actor || actor })); } catch(e) {}
   samtuShowPendingIndicator(newCount);
 }
 function samtuDecrementPending() {
@@ -241,10 +241,10 @@ function _samtuSpeak(text, delayMs) {
 }
 
 // Opptakt – to stigende pip (kalles når byggjobb starter)
-function samtuPlayStart() {
+function samtuPlayStart(speechText) {
   // 600 Hz (120ms) → 900 Hz (200ms) → tale
   var ms = _samtuPlayNotes([[600,0,0.12],[900,0.15,0.20]]);
-  _samtuSpeak('Build job started', ms + 150);
+  _samtuSpeak(speechText || 'Build job started', ms + 150);
 }
 
 // Hjelpefunksjon: tall til ord for TTS (0–10, ellers siffer)
@@ -396,23 +396,38 @@ setTimeout(function() {
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data.workflow_runs) return;
-        var myCompletedTotal = 0, myActive = 0, totalActive = 0;
+        var myCompletedTotal = 0, myCancelledTotal = 0, myActive = 0, totalActive = 0;
         for (var i = 0; i < data.workflow_runs.length; i++) {
           var run = data.workflow_runs[i];
           if (new Date(run.created_at).getTime() < p2.firstSaveAt - 30000) break;
           var isMine = !p2.actor || (run.triggering_actor && run.triggering_actor.login === p2.actor);
           if (run.status === 'completed') {
-            if (isMine && run.conclusion === 'success') myCompletedTotal++;
+            if (isMine) {
+              if (run.conclusion === 'success') myCompletedTotal++;
+              else if (run.conclusion === 'cancelled') myCancelledTotal++;
+            }
           } else if (run.status === 'queued' || run.status === 'in_progress') {
             totalActive++;
             if (isMine) myActive++;
           }
         }
         var othersActive = totalActive - myActive;
+        // allMyDone: ingen av mine kjøringer er aktive lenger, og minst én lyktes
+        // (kansellerte avløste jobber teller ikke mot fullføring, men blokkerer ikke done)
+        var allMyDone = (myActive === 0 && myCompletedTotal > 0);
+
+        // Spill av melding om kansellerte (avløste) kjøringer
+        var prevSeenCancelled = p2.seenCancelled || 0;
+        var newCancellations = myCancelledTotal - prevSeenCancelled;
+        if (newCancellations > 0 && !allMyDone) {
+          var combinedMsg = newCancellations === 1
+            ? 'Your documentation job was combined with the previous job'
+            : _numWord(newCancellations) + ' of your documentation jobs were combined with previous jobs';
+          samtuPlayStart(combinedMsg);
+        }
+
         var prevSeen = p2.seenCompleted || 0;
         var newCompletions = myCompletedTotal - prevSeen;
-        var newCount = Math.max(0, (p2.count || 0) - newCompletions);
-        var allMyDone = (newCount === 0 && myCompletedTotal > 0);
 
         if (allMyDone) {
           // Alle mine endringer er deployet
@@ -427,21 +442,23 @@ setTimeout(function() {
           setTimeout(function() {
             window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
           }, 1800);
-        } else if (newCompletions > 0) {
-          // Noen av mine bygg ferdige – oppdater teller
-          var safeCount = Math.max(1, newCount);
+        } else if (newCompletions > 0 || newCancellations > 0) {
+          // Nye fullføringer eller kanseller – oppdater teller og lagret tilstand
+          var newCount = Math.max(1, (p2.count || 0) - newCompletions);
           try {
             localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({
-              count: safeCount, firstSaveAt: p2.firstSaveAt, lastSaveAt: p2.lastSaveAt,
-              seenCompleted: myCompletedTotal, actor: p2.actor
+              count: newCount, firstSaveAt: p2.firstSaveAt, lastSaveAt: p2.lastSaveAt,
+              seenCompleted: myCompletedTotal, seenCancelled: myCancelledTotal, actor: p2.actor
             }));
           } catch(e) {}
-          samtuShowPendingIndicatorWithTotal(safeCount, totalActive);
-          var completedWord = newCompletions === 1 ? 'One of your documentation jobs completed' : _numWord(newCompletions) + ' of your documentation jobs completed';
-          var remainingWord = safeCount === 1 ? 'one remaining' : _numWord(safeCount) + ' remaining';
-          samtuPlaySuccess(completedWord + ', ' + remainingWord);
+          samtuShowPendingIndicatorWithTotal(newCount, totalActive);
+          if (newCompletions > 0) {
+            var completedWord = newCompletions === 1 ? 'One of your documentation jobs completed' : _numWord(newCompletions) + ' of your documentation jobs completed';
+            var remainingWord = newCount === 1 ? 'one remaining' : _numWord(newCount) + ' remaining';
+            samtuPlaySuccess(completedWord + ', ' + remainingWord);
+          }
         } else {
-          // Ingen nye fullføringer ennå
+          // Ingen nye hendelser ennå
           samtuShowPendingIndicatorWithTotal(p2.count, totalActive);
         }
       })
