@@ -247,11 +247,17 @@ function samtuPlayStart() {
   _samtuSpeak('Build job started', ms + 150);
 }
 
+// Hjelpefunksjon: tall til ord for TTS (0–10, ellers siffer)
+function _numWord(n) {
+  var w = ['zero','one','two','three','four','five','six','seven','eight','nine','ten'];
+  return n >= 0 && n < w.length ? w[n] : String(n);
+}
+
 // Seiersfanfare – C-E-G-C stigende (kalles når bygg er ferdig)
-function samtuPlaySuccess() {
+function samtuPlaySuccess(speechText) {
   // C5–E5–G5–C6, siste tone lang for avslutningseffekt
   var ms = _samtuPlayNotes([[523,0,0.22],[659,0.25,0.22],[784,0.50,0.22],[1047,0.75,0.60]]);
-  _samtuSpeak('Build job complete', ms + 150);
+  _samtuSpeak(speechText || 'Build job complete', ms + 150);
 }
 
 // Wah-wah – tre fallende toner (kalles ved feil eller timeout)
@@ -407,7 +413,7 @@ setTimeout(function() {
           clearInterval(resumeTimer);
           samtuClearPending();
           samtuShowDoneIndicator();
-          samtuPlaySuccess();
+          samtuPlaySuccess('All jobs completed');
           setTimeout(function() {
             window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
           }, 1800);
@@ -424,6 +430,9 @@ setTimeout(function() {
               }));
             } catch(e) {}
             samtuShowPendingIndicatorWithTotal(newCount, totalActive);
+            var completedWord = newCompletions === 1 ? 'One job completed' : _numWord(newCompletions) + ' jobs completed';
+            var remainingWord = newCount === 1 ? 'one remaining' : _numWord(newCount) + ' remaining';
+            samtuPlaySuccess(completedWord + ', ' + remainingWord);
           } else {
             samtuShowPendingIndicatorWithTotal(p2.count, totalActive);
           }
