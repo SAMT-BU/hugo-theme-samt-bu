@@ -1579,7 +1579,6 @@ setTimeout(function() {
       .catch(function() {});
 
     function onSaveSuccess(commitResult) {
-      console.log('[samtu] onSaveSuccess commitResult:', JSON.stringify(commitResult));
       setStatus(qeLang === 'en' ? 'Saved! Updating site…' : 'Lagret! Nettstedet oppdateres…');
       saveBtn.disabled = true;
       saveBtn.textContent = qeLang === 'en' ? 'Saved' : 'Lagret';
@@ -1607,6 +1606,7 @@ setTimeout(function() {
 
     function startCfTracking(startTime, sha) {
       if (!sha) { pollQeBuild(startTime, qeOldEtag); return; }
+      samtuPlayStart();
       var statusSecs = 0;
       var statusTimer = setInterval(function() {
         statusSecs += 5;
