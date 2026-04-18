@@ -1572,24 +1572,18 @@ setTimeout(function() {
     var startTime  = Date.now();
     var commitMsg  = (qeLang === 'en' ? 'Updated: ' : 'Oppdatert: ') + qePageTitle;
 
-    // Hent samtu-build-meta FØR lagring – brukes til å detektere CF Pages-deploy
+    // Hent samtu-build-meta FØR lagring via Worker-proxy (omgår CF CDN-cache)
     var qeOldEtag = null;
     var qeOldBuild = (function() {
       var m = document.querySelector('meta[name="samtu-build"]');
       return m ? m.getAttribute('content') : null;
     }());
-    fetch(qePermalink + (qePermalink.indexOf('?') >= 0 ? '&' : '?') + '_pre=' + Date.now(), {
-      cache: 'no-store',
-      headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
-    })
-      .then(function(r) { return r.text(); })
-      .then(function(html) {
-        var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
-        if (m) qeOldEtag = m[1];
-        else qeOldEtag = qeOldBuild; // fallback til live DOM-verdi
-        console.log('[samtu] initial fetch: qeOldEtag set to', qeOldEtag, '(dom was:', qeOldBuild, ')');
-      })
-      .catch(function() { qeOldEtag = qeOldBuild; console.log('[samtu] initial fetch failed, fallback to', qeOldBuild); });
+    var _bsBase = 'https://samt-bu-cms-auth.erik-hag1.workers.dev/build-status?url=';
+    var _bsUrl = _bsBase + encodeURIComponent(window.location.origin + qePermalink) + '&_pre=' + Date.now();
+    fetch(_bsUrl, { cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) { qeOldEtag = d.buildTag || qeOldBuild; })
+      .catch(function() { qeOldEtag = qeOldBuild; });
 
     function onSaveSuccess(commitResult) {
       setStatus(qeLang === 'en' ? 'Saved! Updating site…' : 'Lagret! Nettstedet oppdateres…');
@@ -1671,7 +1665,8 @@ setTimeout(function() {
     var lang = qeLang;
     var url = qePermalink;
     var attempts = 0;
-    console.log('[samtu] pollQeBuild start – oldEtag:', oldEtag, 'url:', url, 'startTime:', new Date(startTime).toISOString());
+    var bsBase = 'https://samt-bu-cms-auth.erik-hag1.workers.dev/build-status?url='
+                 + encodeURIComponent(window.location.origin + url) + '&_cf=';
 
     function doNav() { window.location.href = url + '?_=' + Date.now(); }
 
@@ -1733,24 +1728,15 @@ setTimeout(function() {
           .catch(function() { _checkingApi = false; clearInterval(qePollTimer); qePollTimer = null; samtuPlayFailure(); setStatus('⚠ Tidsavbrudd'); });
         return;
       }
-      fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
-      })
-        .then(function(r) { return r.text(); })
-        .then(function(html) {
-          var m = html.match(/<meta name="samtu-build" content="([^"]+)"/);
-          var newEtag = m ? m[1] : null;
+      fetch(bsBase + Date.now(), { cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var newEtag = d.buildTag || null;
           var newBuildTime = newEtag ? new Date(newEtag).getTime() : 0;
           var fresh = newBuildTime >= startTime;
           var changed = !oldEtag || newEtag !== oldEtag;
-          if (attempts === 1 || attempts % 5 === 0) {
-            console.log('[samtu] poll #' + attempts + ' newEtag:', newEtag, 'fresh:', fresh, 'changed:', changed, 'startTime:', new Date(startTime).toISOString());
-          }
-          // Ferdig om: meta-tag er endret fra gammel OG (ny nok til å være vår build, eller vi hadde ingen gammel referanse)
           if (newEtag && changed && (fresh || !oldEtag)) {
             var cfSec = Math.round((Date.now() - startTime) / 1000);
-            console.log('[samtu] CF Pages build detected! cfSec:', cfSec, 'newEtag:', newEtag);
             try { localStorage.setItem('samtu-cf-duration', JSON.stringify({ startTime: startTime, duration: cfSec })); } catch(e) {}
             samtuPlaySuccess(); onBuildDone();
           } else {
