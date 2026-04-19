@@ -2348,6 +2348,7 @@ setTimeout(function() {
     isEn ? 'Give feedback' : 'Gi kommentar';
 
   function openPanel() {
+    if (window.samtuCloseHistory) window.samtuCloseHistory();
     panel.style.display = 'block';
     panelOpen = true;
     if (!fetched) fetchIssues();
@@ -2356,6 +2357,7 @@ setTimeout(function() {
     panel.style.display = 'none';
     panelOpen = false;
   }
+  window.samtuCloseIssuesPanel = closePanel;
 
   btn.addEventListener('click', function(e) {
     e.stopPropagation();
@@ -2700,6 +2702,7 @@ setTimeout(function() {
   }
 
   function openHistory() {
+    if (window.samtuCloseIssuesPanel) window.samtuCloseIssuesPanel();
     dialog.style.display = 'block';
     _historyRuns = null;
     fetchHistory();
@@ -2715,6 +2718,7 @@ setTimeout(function() {
     _historyLiveTimer = null;
     _historyFetchTimer = null;
   }
+  window.samtuCloseHistory = closeHistory;
 
   if (tabMineBtn) tabMineBtn.addEventListener('click', function() {
     if (_historyMode !== 'mine') { setTab('mine'); _historyRuns = null; fetchHistory(); }
