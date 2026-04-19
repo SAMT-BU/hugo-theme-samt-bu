@@ -183,6 +183,40 @@ function createPr(token, repo, branchName, title, body) {
   });
 }
 
+function ensureForkReady(token, repo) {
+  var login = localStorage.getItem('samt-bu-gh-user');
+  var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
+  return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/git/refs/heads/main', { headers: h, cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(ref) {
+      var upstreamSha = ref.object.sha;
+      return fetch('https://api.github.com/repos/' + login + '/' + repo, { headers: h })
+        .then(function(r2) {
+          if (r2.ok) {
+            // Fork exists – sync main to upstream
+            return fetch('https://api.github.com/repos/' + login + '/' + repo + '/git/refs/heads/main', {
+              method: 'PATCH', headers: h, body: JSON.stringify({ sha: upstreamSha, force: true })
+            });
+          } else {
+            // Create fork and wait for it to be ready
+            return fetch('https://api.github.com/repos/SAMT-X/' + repo + '/forks', {
+              method: 'POST', headers: h, body: JSON.stringify({})
+            }).then(function() {
+              var attempts = 0;
+              function waitForFork() {
+                attempts++;
+                if (attempts > 20) throw new Error('Fork-opprettelse tok for lang tid – prøv igjen');
+                return new Promise(function(res) { setTimeout(res, 2000); })
+                  .then(function() { return fetch('https://api.github.com/repos/' + login + '/' + repo, { headers: h }); })
+                  .then(function(r3) { if (r3.ok) return; return waitForFork(); });
+              }
+              return waitForFork();
+            });
+          }
+        });
+    });
+}
+
 // Persistent bygg-sporing på tvers av sidenavigering (localStorage)
 var SAMTU_PENDING_KEY = 'samtu-build-pending';
 function samtuGetPending() {
@@ -984,24 +1018,28 @@ setTimeout(function() {
 
     // Hent søskenfiler og last opp bilder parallelt – alt i én commit (retry ved konflikt)
     var imgDir = npParentPath + '/' + slug;
-    function tryNpCommit(attemptsLeft, targetBranch) {
+    function tryNpCommit(attemptsLeft, targetBranch, org) {
       return Promise.all([
         weightInt ? fetchSiblingWeightUpdates(token, npRepo, npParentPath, weightInt, slug) : Promise.resolve([]),
         uploadImageBlobs(token, npRepo, imgDir, npImages)
       ]).then(function(results) {
-        return createFilesInOneCommit(token, npRepo, newFiles.concat(results[0]), commitMsg, results[1], targetBranch);
+        return createFilesInOneCommit(token, npRepo, newFiles.concat(results[0]), commitMsg, results[1], targetBranch, org);
       }).catch(function(err) {
         if (err.message === 'Update is not a fast forward' && !targetBranch && attemptsLeft > 0) {
           setNpStatus(npLang === 'en' ? 'Retrying…' : 'Prøver på nytt…');
           return new Promise(function(res) { setTimeout(res, 1500); })
-            .then(function() { return tryNpCommit(attemptsLeft - 1, targetBranch); });
+            .then(function() { return tryNpCommit(attemptsLeft - 1, targetBranch, org); });
         }
         throw err;
       });
     }
     checkCollaboratorPermission(npRepo, function(canWrite) {
       var branchName = canWrite ? null : makePrBranch();
-      tryNpCommit(2, branchName)
+      var npLogin = localStorage.getItem('samt-bu-gh-user') || 'unknown';
+      var commitPromise = canWrite
+        ? tryNpCommit(2, branchName)
+        : ensureForkReady(token, npRepo).then(function() { return tryNpCommit(2, branchName, npLogin); });
+      commitPromise
         .then(function() {
           if (canWrite) {
             npTitle = titleNb;
@@ -1020,7 +1058,7 @@ setTimeout(function() {
             var prBody = npLang === 'en'
               ? 'New page suggested by @' + login + ' via SAMT-BU Docs editor.'
               : 'Ny side foreslått av @' + login + ' via SAMT-BU Docs redigeringsgrensesnitt.';
-            return createPr(token, npRepo, branchName, prTitle, prBody)
+            return createPr(token, npRepo, npLogin + ':' + branchName, prTitle, prBody)
               .then(function(pr) {
                 setNpStatus(npLang === 'en' ? '\u2713 Pull request sent' : '\u2713 Pull request sendt');
                 submitBtn.textContent = npLang === 'en' ? 'Sent' : 'Sendt';
@@ -1096,8 +1134,8 @@ setTimeout(function() {
 
   // Oppretter flere filer i én enkelt commit via Git Data API (unngår dobbel Hugo-bygg og race condition)
   // blobItems: pre-uploadede binærfiler med SHA (valgfri, f.eks. bilder)
-  function createFilesInOneCommit(token, repo, files, commitMsg, blobItems, targetBranch) {
-    var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
+  function createFilesInOneCommit(token, repo, files, commitMsg, blobItems, targetBranch, org) {
+    var apiBase = 'https://api.github.com/repos/' + (org || 'SAMT-X') + '/' + repo;
     var headers = {
       'Authorization': 'token ' + token,
       'Accept': 'application/vnd.github+json',
@@ -1347,21 +1385,25 @@ setTimeout(function() {
 
     checkCollaboratorPermission(delRepo, function(canWrite) {
       var branchName = canWrite ? null : makePrBranch();
+      var delLogin = localStorage.getItem('samt-bu-gh-user') || 'unknown';
       var commitMsg = (delLang === 'en' ? 'Delete page: ' : 'Slett side: ') + delTitle;
 
-      function tryDelCommit(attemptsLeft) {
+      function tryDelCommit(attemptsLeft, org) {
         var doDelete = delChildCount > 0
-          ? deleteDirectoryRecursive(token, delRepo, delDirPath, commitMsg, branchName)
-          : deleteFilesInOneCommit(token, delRepo, [nbPath, enPath], commitMsg, branchName);
+          ? deleteDirectoryRecursive(token, delRepo, delDirPath, commitMsg, branchName, org)
+          : deleteFilesInOneCommit(token, delRepo, [nbPath, enPath], commitMsg, branchName, org);
         return doDelete.catch(function(err) {
           if (err.message === 'Update is not a fast forward' && !branchName && attemptsLeft > 0) {
             return new Promise(function(res) { setTimeout(res, 1500); })
-              .then(function() { return tryDelCommit(attemptsLeft - 1); });
+              .then(function() { return tryDelCommit(attemptsLeft - 1, org); });
           }
           throw err;
         });
       }
-      tryDelCommit(2)
+      var delPromise = canWrite
+        ? tryDelCommit(2)
+        : ensureForkReady(token, delRepo).then(function() { return tryDelCommit(2, delLogin); });
+      delPromise
         .then(function() {
           if (canWrite) {
             showBuildPanel();
@@ -1369,11 +1411,10 @@ setTimeout(function() {
             pollBuild(startTime);
           } else {
             var prTitle = (delLang === 'en' ? 'Suggest deletion: ' : 'Foreslår sletting: ') + delTitle;
-            var login = localStorage.getItem('samt-bu-gh-user') || 'unknown';
             var prBody = delLang === 'en'
-              ? 'Deletion suggested by @' + login + ' via SAMT-BU Docs.'
-              : 'Sletting foreslått av @' + login + ' via SAMT-BU Docs.';
-            return createPr(token, delRepo, branchName, prTitle, prBody)
+              ? 'Deletion suggested by @' + delLogin + ' via SAMT-BU Docs.'
+              : 'Sletting foreslått av @' + delLogin + ' via SAMT-BU Docs.';
+            return createPr(token, delRepo, delLogin + ':' + branchName, prTitle, prBody)
               .then(function(pr) {
                 showBuildPanel();
                 document.getElementById('del-heading').textContent =
@@ -1401,8 +1442,8 @@ setTimeout(function() {
     });
   }
 
-  function deleteFilesInOneCommit(token, repo, paths, commitMsg, targetBranch) {
-    var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
+  function deleteFilesInOneCommit(token, repo, paths, commitMsg, targetBranch, org) {
+    var apiBase = 'https://api.github.com/repos/' + (org || 'SAMT-X') + '/' + repo;
     var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
     var headSha;
     var branch = targetBranch || 'main';
@@ -1436,8 +1477,8 @@ setTimeout(function() {
       });
   }
 
-  function deleteDirectoryRecursive(token, repo, dirPath, commitMsg, targetBranch) {
-    var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
+  function deleteDirectoryRecursive(token, repo, dirPath, commitMsg, targetBranch, org) {
+    var apiBase = 'https://api.github.com/repos/' + (org || 'SAMT-X') + '/' + repo;
     var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
     var branch = targetBranch || 'main';
     return fetch(apiBase + '/git/refs/heads/main', { headers: h, cache: 'no-store' })
@@ -1878,12 +1919,13 @@ setTimeout(function() {
             var branchName = makePrBranch();
             var cleanTitle = (typeof qePageTitle === 'string') ? qePageTitle.replace(/^"(.*)"$/, '$1') : qePageTitle;
             var prTitle = (qeLang === 'en' ? 'Suggest change: ' : 'Foreslår endring: ') + cleanTitle;
-            var login = localStorage.getItem('samt-bu-gh-user') || 'unknown';
+            var qeLogin = localStorage.getItem('samt-bu-gh-user') || 'unknown';
             var prBody = qeLang === 'en'
-              ? 'Suggested by @' + login + ' via SAMT-BU Docs editor.'
-              : 'Foreslått av @' + login + ' via SAMT-BU Docs redigeringsgrensesnitt.';
-            return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg, branchName)
-              .then(function() { return createPr(token, qeRepo, branchName, prTitle, prBody); })
+              ? 'Suggested by @' + qeLogin + ' via SAMT-BU Docs editor.'
+              : 'Foreslått av @' + qeLogin + ' via SAMT-BU Docs redigeringsgrensesnitt.';
+            return ensureForkReady(token, qeRepo)
+              .then(function() { return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg, branchName, qeLogin); })
+              .then(function() { return createPr(token, qeRepo, qeLogin + ':' + branchName, prTitle, prBody); })
               .then(onPrSuccess);
           }
         })
@@ -2002,8 +2044,8 @@ setTimeout(function() {
     }));
   }
 
-  function createQeCommit(token, repo, filePath, content, blobItems, message, targetBranch) {
-    var apiBase = 'https://api.github.com/repos/SAMT-X/' + repo;
+  function createQeCommit(token, repo, filePath, content, blobItems, message, targetBranch, org) {
+    var apiBase = 'https://api.github.com/repos/' + (org || 'SAMT-X') + '/' + repo;
     var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
     var headSha;
     var branch = targetBranch || 'main';
