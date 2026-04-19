@@ -54,12 +54,10 @@
               {{with $File.Path }}
                 {{ $fp := replace $File.Path "\\" "/" }}
                 {{ $ghEditURL := "" }}
-                {{ if hasPrefix $fp "teams/team-architecture/" }}
-                  {{ $rel := strings.TrimPrefix "teams/team-architecture/" $fp }}
-                  {{ $ghEditURL = printf "https://github.com/SAMT-X/team-architecture/edit/main/content/%s" $rel }}
-                {{ else if hasPrefix $fp "teams/team-semantics/" }}
-                  {{ $rel := strings.TrimPrefix "teams/team-semantics/" $fp }}
-                  {{ $ghEditURL = printf "https://github.com/SAMT-X/team-semantics/edit/main/content/%s" $rel }}
+                {{ if hasPrefix $fp "teams/" }}
+                  {{ $teamName := index (split (strings.TrimPrefix "teams/" $fp) "/") 0 }}
+                  {{ $rel := strings.TrimPrefix (printf "teams/%s/" $teamName) $fp }}
+                  {{ $ghEditURL = printf "https://github.com/SAMT-X/%s/edit/main/content/%s" $teamName $rel }}
                 {{ else if hasPrefix $fp "utkast/" }}
                   {{ $rel := strings.TrimPrefix "utkast/" $fp }}
                   {{ $ghEditURL = printf "https://github.com/SAMT-X/samt-bu-drafts/edit/main/content/%s" $rel }}

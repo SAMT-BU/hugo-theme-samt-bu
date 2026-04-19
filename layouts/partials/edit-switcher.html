@@ -38,11 +38,12 @@
   {{ $rel := "" }}
 
   {{ if hasPrefix $dir "teams/" }}
-    {{/* team-architecture modul */}}
+    {{/* Modul under teams/ – repo-navn = mappenavn, fungerer for alle teams */}}
     {{ $isModulePage = true }}
-    {{ $rel = strings.TrimPrefix "teams/team-architecture" $dir }}
+    {{ $teamName := index (split (strings.TrimPrefix "teams/" $dir) "/") 0 }}
+    {{ $rel = strings.TrimPrefix (printf "teams/%s" $teamName) $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
-    {{ $githubRepo = "team-architecture" }}
+    {{ $githubRepo = $teamName }}
 
   {{ else if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
     {{/* samt-bu-drafts modul */}}
@@ -84,7 +85,8 @@
   {{ $rel := "" }}
   {{ $dir := path.Dir .File.Path }}
   {{ if hasPrefix $dir "teams/" }}
-    {{ $rel = strings.TrimPrefix "teams/team-architecture" $dir }}
+    {{ $teamName := index (split (strings.TrimPrefix "teams/" $dir) "/") 0 }}
+    {{ $rel = strings.TrimPrefix (printf "teams/%s" $teamName) $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
   {{ else if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
     {{ $rel = strings.TrimPrefix "utkast" $dir }}
@@ -98,7 +100,7 @@
   {{ end }}
   {{ if ne $rel "" }}
     {{ $githubRepoSibling := "samt-bu-docs" }}
-    {{ if hasPrefix $dir "teams/" }}{{ $githubRepoSibling = "team-architecture" }}{{ end }}
+    {{ if hasPrefix $dir "teams/" }}{{ $githubRepoSibling = index (split (strings.TrimPrefix "teams/" $dir) "/") 0 }}{{ end }}
     {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}{{ $githubRepoSibling = "samt-bu-drafts" }}{{ end }}
     {{ if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}{{ $githubRepoSibling = "solution-samt-bu-docs" }}{{ end }}
     {{ $parentRel := path.Dir $rel }}
