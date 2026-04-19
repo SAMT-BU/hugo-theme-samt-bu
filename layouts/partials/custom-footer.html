@@ -115,17 +115,33 @@ function fetchCurrentUser(callback) {
 }
 
 function updateAvatarDisplay() {
-  var img = document.getElementById('samtu-user-avatar');
-  if (!img) return;
+  var wrap  = document.getElementById('samtu-avatar-wrap');
+  var img   = document.getElementById('samtu-user-avatar');
+  var label = document.getElementById('samtu-avatar-login');
   var avatar = localStorage.getItem('samt-bu-gh-avatar');
   var login  = localStorage.getItem('samt-bu-gh-user');
   if (avatar && login) {
-    img.src = avatar;
-    img.title = login;
-    img.style.display = 'inline-block';
+    if (img)   { img.src = avatar; img.title = '@' + login; }
+    if (label) { label.textContent = '@' + login; }
+    if (wrap)  { wrap.style.display = 'inline-block'; }
   } else {
-    img.style.display = 'none';
+    if (wrap)  { wrap.style.display = 'none'; }
   }
+}
+
+function samtuLogout() {
+  try {
+    localStorage.removeItem(SAMT_TOKEN_KEY);
+    localStorage.removeItem('samt-bu-gh-user');
+    localStorage.removeItem('samt-bu-gh-name');
+    localStorage.removeItem('samt-bu-gh-avatar');
+    ['samt-bu-docs','team-architecture','samt-bu-drafts','solution-samt-bu-docs'].forEach(function(r) {
+      localStorage.removeItem('samtu-perm-' + r);
+    });
+  } catch(e) {}
+  updateAvatarDisplay();
+  var wrap = document.getElementById('samtu-avatar-wrap');
+  if (wrap) wrap.style.display = 'none';
 }
 
 function checkCollaboratorPermission(repo, callback) {
@@ -606,6 +622,40 @@ setTimeout(function() {
   });
   document.addEventListener('click', function() {
     menu.classList.remove('open');
+  });
+})();
+</script>
+
+<!-- Avatar-dropdown: vis bruker og logg ut -->
+<script>
+(function() {
+  var wrap  = document.getElementById('samtu-avatar-wrap');
+  var img   = document.getElementById('samtu-user-avatar');
+  var menu  = document.getElementById('samtu-avatar-menu');
+  var logoutBtn = document.getElementById('samtu-logout-btn');
+  if (!wrap || !img || !menu) return;
+
+  img.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var isOpen = menu.style.display !== 'none';
+    menu.style.display = isOpen ? 'none' : 'block';
+    // Lukk andre menyer
+    ['edit-menu','lang-menu','tema-menu'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    });
+  });
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      menu.style.display = 'none';
+      samtuLogout();
+    });
+  }
+
+  document.addEventListener('click', function() {
+    if (menu) menu.style.display = 'none';
   });
 })();
 </script>
