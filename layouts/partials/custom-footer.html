@@ -2202,6 +2202,116 @@ setTimeout(function() {
 
 </script>
 
+<!-- Gi kommentar: dialog og GitHub Issues API -->
+<script>
+(function() {
+  var overlay = document.getElementById('cm-overlay');
+  if (!overlay) return;
+
+  var cmRepo = '', cmLang = 'nb', cmPageTitle = '', cmPermalink = '';
+
+  function closeDialog() {
+    overlay.style.display = 'none';
+    document.getElementById('cm-text').value = '';
+    document.getElementById('cm-error').style.display = 'none';
+    document.getElementById('cm-form-section').style.display = 'block';
+    document.getElementById('cm-done-section').style.display = 'none';
+    var btn = document.getElementById('cm-submit');
+    btn.disabled = false;
+    btn.textContent = cmLang === 'en' ? 'Send' : 'Send';
+  }
+
+  window.openCommentDialog = function(repo, lang, pageTitle, permalink) {
+    cmRepo = repo;
+    cmLang = lang || 'nb';
+    cmPageTitle = pageTitle || '';
+    cmPermalink = permalink || '';
+
+    if (!getStoredToken()) {
+      doGitHubLogin(function() {
+        window.openCommentDialog(repo, lang, pageTitle, permalink);
+      });
+      return;
+    }
+
+    var isEn = cmLang === 'en';
+    document.getElementById('cm-heading').textContent = isEn ? 'Give feedback' : 'Gi kommentar';
+    document.getElementById('cm-intro').textContent = isEn
+      ? 'Your comment will be registered as a GitHub Issue on this page.'
+      : 'Kommentaren din blir registrert som en GitHub Issue på denne siden.';
+    document.getElementById('cm-cancel').textContent = isEn ? 'Cancel' : 'Avbryt';
+    document.getElementById('cm-submit').textContent = isEn ? 'Send' : 'Send';
+    document.getElementById('cm-submit').disabled = false;
+    document.getElementById('cm-form-section').style.display = 'block';
+    document.getElementById('cm-done-section').style.display = 'none';
+    document.getElementById('cm-error').style.display = 'none';
+    document.getElementById('cm-text').value = '';
+
+    overlay.style.display = 'block';
+    setTimeout(function() { document.getElementById('cm-text').focus(); }, 50);
+  };
+
+  document.getElementById('cm-close-x').addEventListener('click', closeDialog);
+  document.getElementById('cm-cancel').addEventListener('click', closeDialog);
+  document.getElementById('cm-done-btn').addEventListener('click', closeDialog);
+  overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDialog(); e.stopPropagation(); });
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeDialog(); });
+
+  document.getElementById('cm-submit').addEventListener('click', function() {
+    var text = document.getElementById('cm-text').value.trim();
+    var isEn = cmLang === 'en';
+    var errorEl = document.getElementById('cm-error');
+    if (!text) {
+      errorEl.textContent = isEn ? 'Please enter a comment.' : 'Skriv inn en kommentar.';
+      errorEl.style.display = 'block';
+      return;
+    }
+    var token = getStoredToken();
+    if (!token) { closeDialog(); return; }
+
+    var btn = document.getElementById('cm-submit');
+    btn.disabled = true;
+    btn.textContent = isEn ? 'Sending\u2026' : 'Sender\u2026';
+    errorEl.style.display = 'none';
+
+    var issueTitle = (isEn ? 'Feedback: ' : 'Tilbakemelding: ') + cmPageTitle;
+    var issueBody = '**' + (isEn ? 'Page' : 'Side') + ':** '
+      + window.location.origin + cmPermalink + '\n\n' + text;
+
+    fetch('https://api.github.com/repos/SAMT-X/' + cmRepo + '/issues', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'token ' + token,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ title: issueTitle, body: issueBody })
+    })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(d) { throw new Error(d.message || r.status); });
+      return r.json();
+    })
+    .then(function(issue) {
+      document.getElementById('cm-form-section').style.display = 'none';
+      document.getElementById('cm-done-section').style.display = 'block';
+      document.getElementById('cm-done-text').textContent = isEn
+        ? '\u2705 Your comment has been registered.'
+        : '\u2705 Kommentaren din er registrert.';
+      var link = document.getElementById('cm-issue-link');
+      link.href = issue.html_url;
+      link.textContent = isEn ? 'View issue on GitHub \u2192' : 'Se issue p\u00e5 GitHub \u2192';
+      document.getElementById('cm-done-btn').textContent = isEn ? 'Close' : 'Lukk';
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      btn.textContent = isEn ? 'Send' : 'Send';
+      errorEl.textContent = (isEn ? 'Something went wrong: ' : 'Noe gikk galt: ') + err.message;
+      errorEl.style.display = 'block';
+    });
+  });
+})();
+</script>
+
 <!-- Flytende dialogvinduer: drag, resize-persistens, maksimering -->
 <script>
 (function() {

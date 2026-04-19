@@ -147,6 +147,14 @@
       </a>
     </li>
     {{ end }}
+    {{ if .File }}
+    <li style="border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;">
+      <a href="#" onclick="openCommentDialog('{{ $githubRepo }}', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}'); return false;">
+        <i class="fa fa-comment-o"></i>
+        <span>{{ cond (eq $lang "en") "Give feedback" "Gi kommentar" }}</span>
+      </a>
+    </li>
+    {{ end }}
     {{ if and .File (ne $entrySlug "") (ne $dirPath "content") }}
     <li style="border-top:1px solid #f5e0e0; margin-top:3px; padding-top:3px;">
       <a href="#" data-del-title="{{ .Title }}" onclick="openDeleteDialog('{{ $githubRepo }}', '{{ $dirPath }}', '{{ $lang }}', this.dataset.delTitle, '{{ $afterDeleteUrl }}', {{ len .Pages }}); return false;" style="color:#b00020;">
@@ -400,5 +408,33 @@
       <button type="button" data-qe="clear" title="Fjern formatering">T✕</button>
     </div>
     <div id="qe-body-pm"></div>
+  </div>
+</div>
+
+{{/* Modal: Gi kommentar – enkel tilbakemeldingsdialog via GitHub Issues */}}
+<div id="cm-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:99999;">
+  <div id="cm-dialog" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:8px; width:min(520px,94vw); color:#222; box-shadow:0 12px 40px rgba(0,0,0,.32); font-size:16px !important; font-family:inherit;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:.85rem 1.3rem; background:#f0f4f8; border-radius:8px 8px 0 0; border-bottom:1px solid #d0d8e8;">
+      <h3 id="cm-heading" style="margin:0; font-size:17px; color:#1a4a8a; font-weight:700;"></h3>
+      <button id="cm-close-x" type="button" style="background:none; border:none; cursor:pointer; font-size:20px; color:#888; line-height:1; padding:0 0 0 .75rem;">✕</button>
+    </div>
+    <div style="padding:1.2rem 1.6rem 1.6rem;">
+      <div id="cm-form-section">
+        <p id="cm-intro" style="margin:0 0 .8rem; font-size:15px; color:#555;"></p>
+        <textarea id="cm-text" rows="5" style="width:100%; box-sizing:border-box; border:1px solid #bbb; border-radius:4px; font-size:15px; font-family:inherit; padding:.5rem .7rem; resize:vertical;"></textarea>
+        <div id="cm-error" style="display:none; margin:.7rem 0 0; padding:.6rem .9rem; border-radius:5px; background:#fff0f0; border:1px solid #f5c6c6; color:#900; font-size:15px;"></div>
+        <div style="display:flex; gap:.7rem; justify-content:flex-end; margin-top:1rem;">
+          <button type="button" id="cm-cancel" style="padding:.6rem 1.4rem; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer; font-size:16px; font-family:inherit;"></button>
+          <button type="button" id="cm-submit" style="padding:.6rem 1.5rem; border:none; border-radius:5px; background:#1a4a8a; color:#fff; cursor:pointer; font-size:16px; font-family:inherit; font-weight:600;"></button>
+        </div>
+      </div>
+      <div id="cm-done-section" style="display:none;">
+        <p id="cm-done-text" style="margin:0 0 .8rem; font-size:16px; color:#1a5c4a;"></p>
+        <a id="cm-issue-link" href="#" target="_blank" rel="noopener" style="display:inline-block; margin-bottom:1.2rem; font-size:15px; color:#1a4a8a;"></a>
+        <div style="display:flex; justify-content:flex-end;">
+          <button type="button" id="cm-done-btn" style="padding:.6rem 1.5rem; border:none; border-radius:5px; background:#1a4a8a; color:#fff; cursor:pointer; font-size:16px; font-family:inherit; font-weight:600;"></button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
