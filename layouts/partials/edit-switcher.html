@@ -149,6 +149,14 @@
       </a>
     </li>
     {{ end }}
+    {{ if and .File (ne $entrySlug "") }}
+    <li style="border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;">
+      <a href="{{ printf "https://github.com/SAMT-X/%s/edit/main/%s/_index.%s.md" $githubRepo $dirPath $lang }}" target="_blank" rel="noopener">
+        <i class="fa fa-github"></i>
+        <span>{{ cond (eq $lang "en") "Edit in GitHub" "Endre i GitHub" }}</span>
+      </a>
+    </li>
+    {{ end }}
     {{ if .File }}
     <li style="border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;">
       <a href="#" onclick="openCommentDialog('{{ $githubRepo }}', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}', {{ .Params.id | jsonify }}); return false;">
@@ -217,7 +225,6 @@
   .samtu-bar-item + .samtu-bar-item { border-left:1px solid rgba(255,255,255,.15); }
   .samtu-bar-item i { font-size:11px; }
   #samtu-bar-center { position:absolute; left:50%; transform:translateX(-50%); height:100%; display:flex; align-items:center; font-size:13px; font-weight:600; color:rgba(255,255,255,.7); pointer-events:none; white-space:nowrap; }
-  #samtu-gh-edit-btn { border-left:1px solid rgba(255,255,255,.15); }
 </style>
 <div id="samtu-bottom-bar">
   <div id="qe-job-indicator" class="samtu-bar-item" title="{{ cond (eq $lang "en") "Click to see job history" "Klikk for å se jobbhistorikk" }}">
@@ -235,15 +242,6 @@
     <span id="pg-issues-label">{{ cond (eq $lang "en") "Comments" "Kommentarer" }}</span>
   </div>
   <div id="samtu-bar-center">SAMT-BU – Sammenhengende tjenester for barn og unge</div>
-  {{ if .File }}
-  <a id="samtu-gh-edit-btn" class="samtu-bar-item"
-    href="{{ printf "https://github.com/SAMT-X/%s/edit/main/%s/_index.%s.md" $githubRepo $dirPath $lang }}"
-    target="_blank" rel="noopener"
-    title="{{ cond (eq $lang "en") "Edit this page in GitHub" "Endre denne siden i GitHub" }}">
-    <i class="fa fa-code-fork"></i>
-    <span>{{ cond (eq $lang "en") "Edit in GitHub" "Endre i GitHub" }}</span>
-  </a>
-  {{ end }}
 </div>
 
 {{/* Jobbhistorikk-dialog – åpnes ved klikk på qe-job-indicator */}}
