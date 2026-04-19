@@ -443,9 +443,19 @@
   </div>
 </div>
 
-{{/* Modal: Gi kommentar – enkel tilbakemeldingsdialog via GitHub Issues */}}
+{{/* Modal: Gi kommentar – WYSIWYG-dialog via GitHub Issues */}}
+<style>
+  #cm-body-pm { border:1px solid #bbb; border-radius:0 0 4px 4px; min-height:160px; max-height:340px; overflow-y:auto; background:#fff; }
+  #cm-body-pm .ProseMirror { padding:.75rem 1rem; min-height:160px; outline:none; font-size:15px; line-height:1.65; }
+  #cm-body-pm .ProseMirror p { margin:0 0 .6em; }
+  #cm-body-pm .ProseMirror ul { padding-left:1.5em; list-style-type:disc; }
+  #cm-body-pm .ProseMirror ol { padding-left:1.5em; list-style-type:decimal; }
+  #cm-body-pm .ProseMirror a { color:#1a4a8a; text-decoration:underline; }
+  #cm-body-pm .ProseMirror code { background:#f0f0f0; border-radius:3px; padding:0 .3em; font-size:.9em; }
+  #cm-toolbar { border:1px solid #bbb; border-bottom:none; border-radius:4px 4px 0 0; }
+</style>
 <div id="cm-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:99999;">
-  <div id="cm-dialog" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:8px; width:min(520px,94vw); color:#222; box-shadow:0 12px 40px rgba(0,0,0,.32); font-size:16px !important; font-family:inherit;">
+  <div id="cm-dialog" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:8px; width:min(660px,96vw); color:#222; box-shadow:0 12px 40px rgba(0,0,0,.32); font-size:16px !important; font-family:inherit;">
     <div style="display:flex; align-items:center; justify-content:space-between; padding:.85rem 1.3rem; background:#f0f4f8; border-radius:8px 8px 0 0; border-bottom:1px solid #d0d8e8;">
       <h3 id="cm-heading" style="margin:0; font-size:17px; color:#1a4a8a; font-weight:700;"></h3>
       <button id="cm-close-x" type="button" style="background:none; border:none; cursor:pointer; font-size:20px; color:#888; line-height:1; padding:0 0 0 .75rem;">✕</button>
@@ -453,7 +463,16 @@
     <div style="padding:1.2rem 1.6rem 1.6rem;">
       <div id="cm-form-section">
         <p id="cm-intro" style="margin:0 0 .8rem; font-size:15px; color:#555;"></p>
-        <textarea id="cm-text" rows="5" style="width:100%; box-sizing:border-box; border:1px solid #bbb; border-radius:4px; font-size:15px; font-family:inherit; padding:.5rem .7rem; resize:vertical;"></textarea>
+        <div class="tiptap-toolbar" id="cm-toolbar">
+          <button type="button" data-cm="bold" title="Fet"><b>B</b></button>
+          <button type="button" data-cm="italic" title="Kursiv"><em>I</em></button>
+          <span class="tt-sep"></span>
+          <button type="button" data-cm="ul" title="Punktliste">•≡</button>
+          <button type="button" data-cm="ol" title="Nummerert liste">1≡</button>
+          <span class="tt-sep"></span>
+          <button type="button" data-cm="link" title="Sett inn lenke">🔗</button>
+        </div>
+        <div id="cm-body-pm"></div>
         <div id="cm-error" style="display:none; margin:.7rem 0 0; padding:.6rem .9rem; border-radius:5px; background:#fff0f0; border:1px solid #f5c6c6; color:#900; font-size:15px;"></div>
         <div style="display:flex; gap:.7rem; justify-content:flex-end; margin-top:1rem;">
           <button type="button" id="cm-cancel" style="padding:.6rem 1.4rem; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer; font-size:16px; font-family:inherit;"></button>

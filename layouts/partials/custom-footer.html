@@ -2223,16 +2223,78 @@ setTimeout(function() {
   if (!overlay) return;
 
   var cmRepo = '', cmLang = 'nb', cmPageTitle = '', cmPermalink = '';
+  var cmEditor = null;
+
+  function initCmEditor(callback) {
+    if (cmEditor) {
+      cmEditor.commands.setContent('');
+      callback(); return;
+    }
+    loadTiptap(function() {
+      var T = window._Tiptap;
+      cmEditor = new T.Editor({
+        element: document.getElementById('cm-body-pm'),
+        extensions: [
+          T.StarterKit,
+          T.Link.configure({ openOnClick: false }),
+          T.Markdown.configure({ html: false, transformPastedText: true })
+        ],
+        content: ''
+      });
+      setupCmToolbar(cmEditor);
+      callback();
+    });
+  }
+
+  function setupCmToolbar(editor) {
+    var toolbar = document.getElementById('cm-toolbar');
+    if (!toolbar) return;
+    toolbar.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-cm]');
+      if (!btn) return;
+      e.preventDefault();
+      var cmd = btn.getAttribute('data-cm');
+      switch (cmd) {
+        case 'bold':   editor.chain().focus().toggleBold().run(); break;
+        case 'italic': editor.chain().focus().toggleItalic().run(); break;
+        case 'ul':     editor.chain().focus().toggleBulletList().run(); break;
+        case 'ol':     editor.chain().focus().toggleOrderedList().run(); break;
+        case 'link':
+          var url = window.prompt('URL:');
+          if (url) editor.chain().focus().setLink({ href: url }).run();
+          else if (editor.isActive('link')) editor.chain().focus().unsetLink().run();
+          break;
+      }
+      updateCmToolbarState(editor);
+    });
+    editor.on('selectionUpdate', function() { updateCmToolbarState(editor); });
+    editor.on('transaction',     function() { updateCmToolbarState(editor); });
+  }
+
+  function updateCmToolbarState(editor) {
+    var tb = document.getElementById('cm-toolbar');
+    if (!tb) return;
+    tb.querySelectorAll('[data-cm]').forEach(function(btn) {
+      var cmd = btn.getAttribute('data-cm');
+      var active = false;
+      if      (cmd === 'bold')   active = editor.isActive('bold');
+      else if (cmd === 'italic') active = editor.isActive('italic');
+      else if (cmd === 'ul')     active = editor.isActive('bulletList');
+      else if (cmd === 'ol')     active = editor.isActive('orderedList');
+      else if (cmd === 'link')   active = editor.isActive('link');
+      btn.classList.toggle('is-active', active);
+    });
+  }
 
   function closeDialog() {
     overlay.style.display = 'none';
-    document.getElementById('cm-text').value = '';
+    if (cmEditor) cmEditor.commands.setContent('');
     document.getElementById('cm-error').style.display = 'none';
     document.getElementById('cm-form-section').style.display = 'block';
     document.getElementById('cm-done-section').style.display = 'none';
     var btn = document.getElementById('cm-submit');
     btn.disabled = false;
-    btn.textContent = cmLang === 'en' ? 'Send' : 'Send';
+    btn.textContent = 'Send';
   }
 
   window.openCommentDialog = function(repo, lang, pageTitle, permalink) {
@@ -2254,15 +2316,16 @@ setTimeout(function() {
       ? 'Your comment will be registered as a GitHub Issue on this page.'
       : 'Kommentaren din blir registrert som en GitHub Issue på denne siden.';
     document.getElementById('cm-cancel').textContent = isEn ? 'Cancel' : 'Avbryt';
-    document.getElementById('cm-submit').textContent = isEn ? 'Send' : 'Send';
+    document.getElementById('cm-submit').textContent = 'Send';
     document.getElementById('cm-submit').disabled = false;
     document.getElementById('cm-form-section').style.display = 'block';
     document.getElementById('cm-done-section').style.display = 'none';
     document.getElementById('cm-error').style.display = 'none';
-    document.getElementById('cm-text').value = '';
 
     overlay.style.display = 'block';
-    setTimeout(function() { document.getElementById('cm-text').focus(); }, 50);
+    initCmEditor(function() {
+      setTimeout(function() { if (cmEditor) cmEditor.commands.focus(); }, 50);
+    });
   };
 
   document.getElementById('cm-close-x').addEventListener('click', closeDialog);
@@ -2272,7 +2335,7 @@ setTimeout(function() {
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeDialog(); });
 
   document.getElementById('cm-submit').addEventListener('click', function() {
-    var text = document.getElementById('cm-text').value.trim();
+    var text = cmEditor ? cmEditor.storage.markdown.getMarkdown().trim() : '';
     var isEn = cmLang === 'en';
     var errorEl = document.getElementById('cm-error');
     if (!text) {
@@ -2318,7 +2381,7 @@ setTimeout(function() {
     })
     .catch(function(err) {
       btn.disabled = false;
-      btn.textContent = isEn ? 'Send' : 'Send';
+      btn.textContent = 'Send';
       errorEl.textContent = (isEn ? 'Something went wrong: ' : 'Noe gikk galt: ') + err.message;
       errorEl.style.display = 'block';
     });
