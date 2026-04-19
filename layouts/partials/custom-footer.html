@@ -628,12 +628,16 @@ setTimeout(function() {
 
   toggle.addEventListener('click', function(e) {
     e.stopPropagation();
+    if (!getStoredToken()) {
+      doGitHubLogin(function() { fetchCurrentUser(function() {}); });
+      return;
+    }
     menu.classList.toggle('open');
     var langMenu = document.getElementById('lang-menu');
     var temaMenu = document.getElementById('tema-menu');
     if (langMenu) langMenu.classList.remove('open');
     if (temaMenu) temaMenu.classList.remove('open');
-    if (menu.classList.contains('open') && getStoredToken()) {
+    if (menu.classList.contains('open')) {
       var repo = toggle.dataset.repo;
       if (repo) {
         // Reset til originaltekst (håndterer brukerbytte uten sidereload)
