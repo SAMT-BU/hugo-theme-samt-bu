@@ -149,14 +149,6 @@
       </a>
     </li>
     {{ end }}
-    {{ if and .File (ne $entrySlug "") }}
-    <li style="border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;">
-      <a href="{{ printf "https://github.com/SAMT-X/%s/edit/main/%s/_index.%s.md" $githubRepo $dirPath $lang }}" target="_blank" rel="noopener">
-        <i class="fa fa-github"></i>
-        <span>{{ cond (eq $lang "en") "Edit in GitHub" "Endre i GitHub" }}</span>
-      </a>
-    </li>
-    {{ end }}
     {{ if .File }}
     <li style="border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;">
       <a href="#" onclick="openCommentDialog('{{ $githubRepo }}', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}', {{ .Params.id | jsonify }}); return false;">
@@ -170,6 +162,14 @@
       <a href="#" data-del-title="{{ .Title }}" onclick="openDeleteDialog('{{ $githubRepo }}', '{{ $dirPath }}', '{{ $lang }}', this.dataset.delTitle, '{{ $afterDeleteUrl }}', {{ len .Pages }}); return false;" style="color:#b00020;">
         <i class="fa fa-trash-o"></i>
         <span>{{ cond (eq $lang "en") "Delete this page" "Slett denne siden" }}</span>
+      </a>
+    </li>
+    {{ end }}
+    {{ if and .File (ne $entrySlug "") }}
+    <li style="border-top:2px solid #b8cad8; margin-top:5px; padding-top:4px;">
+      <a href="{{ printf "https://github.com/SAMT-X/%s/edit/main/%s/_index.%s.md" $githubRepo $dirPath $lang }}" target="_blank" rel="noopener" style="color:#5577aa; font-style:italic;">
+        <i class="fa fa-github"></i>
+        <span>{{ cond (eq $lang "en") "Edit in GitHub" "Endre i GitHub" }}</span>
       </a>
     </li>
     {{ end }}
