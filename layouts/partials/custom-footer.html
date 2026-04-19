@@ -714,6 +714,20 @@ setTimeout(function() {
 })();
 </script>
 
+<!-- Kommentar-issues: panel -->
+<div id="pg-issues-panel" style="display:none; position:fixed; bottom:50px; left:0; z-index:99999; background:#1e1e1e; color:#e8e8e8; border-radius:0 6px 6px 0; box-shadow:2px -2px 20px rgba(0,0,0,.55); min-width:340px; max-width:500px; font-size:13px; font-family:inherit;">
+  <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,.1); padding:8px 14px 7px;">
+    <span id="pg-issues-heading" style="font-weight:600; font-size:13px;"></span>
+    <button id="pg-issues-close" type="button" style="background:none; border:none; color:#999; cursor:pointer; font-size:15px; padding:0 0 0 12px; line-height:1;">✕</button>
+  </div>
+  <div id="pg-issues-list" style="max-height:320px; overflow-y:auto;"></div>
+  <div style="border-top:1px solid rgba(255,255,255,.1); padding:7px 14px;">
+    <a href="#" id="pg-issues-add-link" style="font-size:13px; color:#7ec8e3; text-decoration:none;">
+      <i class="fa fa-plus" style="font-size:11px; margin-right:4px;"></i><span id="pg-issues-add-label"></span>
+    </a>
+  </div>
+</div>
+
 <!-- Ny side – samme nivå: dialog og GitHub API -->
 <script>
 (function() {
@@ -2309,6 +2323,131 @@ setTimeout(function() {
       errorEl.style.display = 'block';
     });
   });
+})();
+</script>
+
+<!-- Kommentar-issues: knapp og panel -->
+<script>
+(function() {
+  var btn = document.getElementById('pg-issues-btn');
+  var panel = document.getElementById('pg-issues-panel');
+  var listEl = document.getElementById('pg-issues-list');
+  if (!btn || !panel || !listEl) return;
+
+  var repo = btn.dataset.repo || 'samt-bu-docs';
+  var lang = btn.dataset.lang || 'nb';
+  var isEn = lang === 'en';
+  var permalink = btn.dataset.permalink || window.location.pathname;
+  var pageUrl = window.location.origin + permalink;
+  var fetched = false;
+  var panelOpen = false;
+
+  document.getElementById('pg-issues-heading').textContent =
+    isEn ? 'Comments on this page' : 'Kommentarer til denne siden';
+  document.getElementById('pg-issues-add-label').textContent =
+    isEn ? 'Give feedback' : 'Gi kommentar';
+
+  function openPanel() {
+    panel.style.display = 'block';
+    panelOpen = true;
+    if (!fetched) fetchIssues();
+  }
+  function closePanel() {
+    panel.style.display = 'none';
+    panelOpen = false;
+  }
+
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (panelOpen) closePanel(); else openPanel();
+  });
+  document.getElementById('pg-issues-close').addEventListener('click', closePanel);
+  document.addEventListener('click', function(e) {
+    if (!panelOpen) return;
+    if (!panel.contains(e.target) && !btn.contains(e.target)) closePanel();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && panelOpen) closePanel();
+  });
+
+  document.getElementById('pg-issues-add-link').addEventListener('click', function(e) {
+    e.preventDefault();
+    closePanel();
+    if (window.openCommentDialog) {
+      window.openCommentDialog(repo, lang, btn.dataset.title || '', permalink);
+    }
+  });
+
+  function fetchIssues() {
+    listEl.innerHTML = '<div style="padding:12px 14px; color:#999;">'
+      + (isEn ? 'Loading\u2026' : 'Laster\u2026') + '</div>';
+
+    var q = 'repo:SAMT-X/' + repo + ' in:body "' + pageUrl + '" is:issue';
+    var apiUrl = 'https://api.github.com/search/issues?q='
+      + encodeURIComponent(q) + '&per_page=20&sort=created&order=desc';
+
+    var headers = { 'Accept': 'application/vnd.github+json' };
+    var token = (typeof getStoredToken === 'function') ? getStoredToken() : null;
+    if (token) headers['Authorization'] = 'token ' + token;
+
+    fetch(apiUrl, { headers: headers })
+      .then(function(r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        fetched = true;
+        var issues = data.items || [];
+        var n = data.total_count || 0;
+
+        var labelEl = document.getElementById('pg-issues-label');
+        if (labelEl) labelEl.textContent = n === 0
+          ? (isEn ? 'No comments' : 'Ingen kommentarer')
+          : (n === 1
+            ? (isEn ? '1 comment' : '1 kommentar')
+            : n + (isEn ? ' comments' : ' kommentarer'));
+
+        if (issues.length === 0) {
+          listEl.innerHTML = '<div style="padding:12px 14px; color:#888; font-style:italic;">'
+            + (isEn ? 'No comments yet.' : 'Ingen kommentarer ennå.') + '</div>';
+          return;
+        }
+
+        var html = '';
+        issues.forEach(function(issue) {
+          var d = new Date(issue.created_at);
+          var dateStr = d.toLocaleDateString(isEn ? 'en-GB' : 'nb-NO',
+            { day: 'numeric', month: 'short', year: 'numeric' });
+          var isOpen = issue.state === 'open';
+          var badgeBg = isOpen ? '#1a4a1a' : '#3a1a1a';
+          var badgeText = isOpen
+            ? (isEn ? 'open' : 'åpen')
+            : (isEn ? 'closed' : 'lukket');
+          html += '<div style="padding:9px 14px; border-bottom:1px solid rgba(255,255,255,.07);">'
+            + '<div style="display:flex; align-items:flex-start; gap:8px;">'
+            + '<a href="' + esc(issue.html_url) + '" target="_blank" rel="noopener"'
+            + ' style="flex:1; color:#7ec8e3; text-decoration:none; font-size:13px; line-height:1.4;">'
+            + esc(issue.title) + '</a>'
+            + '<span style="flex-shrink:0; font-size:11px; padding:1px 7px; border-radius:10px;'
+            + ' background:' + badgeBg + '; color:#cfc; white-space:nowrap;">' + badgeText + '</span>'
+            + '</div>'
+            + '<div style="margin-top:3px; font-size:11px; color:#666;">'
+            + '#' + issue.number + ' \u00b7 ' + dateStr + ' \u00b7 ' + esc(issue.user.login)
+            + '</div></div>';
+        });
+        listEl.innerHTML = html;
+      })
+      .catch(function() {
+        listEl.innerHTML = '<div style="padding:12px 14px; color:#f88;">'
+          + (isEn ? 'Could not load comments.' : 'Kunne ikke laste kommentarer.') + '</div>';
+      });
+  }
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 })();
 </script>
 

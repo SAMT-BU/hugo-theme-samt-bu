@@ -413,6 +413,18 @@
   </div>
 </div>
 
+{{/* Kommentar-knapp: vis eksisterende issues for denne siden */}}
+<div id="pg-issues-btn"
+  data-repo="{{ $githubRepo }}"
+  data-lang="{{ $lang }}"
+  data-title="{{ .Title }}"
+  data-permalink="{{ .RelPermalink }}"
+  style="display:flex; position:fixed; bottom:26px; left:0; z-index:9997; background:rgba(30,30,30,0.85); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; border-radius:0 4px 0 0; align-items:center; gap:6px; cursor:pointer;"
+  title="{{ cond (eq $lang "en") "Comments on this page" "Kommentarer til denne siden" }}">
+  <i class="fa fa-comments-o" style="font-size:12px; opacity:.7;"></i>
+  <span id="pg-issues-label">{{ cond (eq $lang "en") "Comments" "Kommentarer" }}</span>
+</div>
+
 {{/* Modal: Gi kommentar – enkel tilbakemeldingsdialog via GitHub Issues */}}
 <div id="cm-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:99999;">
   <div id="cm-dialog" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; border-radius:8px; width:min(520px,94vw); color:#222; box-shadow:0 12px 40px rgba(0,0,0,.32); font-size:16px !important; font-family:inherit;">
