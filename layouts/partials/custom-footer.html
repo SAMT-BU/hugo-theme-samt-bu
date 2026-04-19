@@ -440,7 +440,7 @@ function loadTiptap(callback) {
 }
 
 // Pre-hent GitHub-brukernavn hvis innlogget (popuperer cache for bruk ved lagring)
-if (getStoredToken() && !localStorage.getItem('samt-bu-gh-user')) fetchCurrentUser(function() {});
+if (getStoredToken() && (!localStorage.getItem('samt-bu-gh-user') || !localStorage.getItem('samt-bu-gh-avatar'))) fetchCurrentUser(function() {});
 updateAvatarDisplay();
 
 // Gjenopprett pending-spinner ved sideinnlasting og tell ned per ferdig bygg
