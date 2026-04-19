@@ -115,17 +115,18 @@ function fetchCurrentUser(callback) {
 }
 
 function updateAvatarDisplay() {
-  var wrap  = document.getElementById('samtu-avatar-wrap');
-  var img   = document.getElementById('samtu-user-avatar');
-  var label = document.getElementById('samtu-avatar-login');
-  var avatar = localStorage.getItem('samt-bu-gh-avatar');
-  var login  = localStorage.getItem('samt-bu-gh-user');
+  var img      = document.getElementById('samtu-user-avatar');
+  var loginBtn = document.getElementById('samtu-login-btn');
+  var label    = document.getElementById('samtu-avatar-username');
+  var avatar   = localStorage.getItem('samt-bu-gh-avatar');
+  var login    = localStorage.getItem('samt-bu-gh-user');
   if (avatar && login) {
-    if (img)   { img.src = avatar; img.title = '@' + login; }
-    if (label) { label.textContent = '@' + login; }
-    if (wrap)  { wrap.style.display = 'inline-block'; }
+    if (img)      { img.src = avatar; img.title = '@' + login; img.style.display = 'inline-block'; }
+    if (label)    { label.textContent = '@' + login; }
+    if (loginBtn) { loginBtn.style.display = 'none'; }
   } else {
-    if (wrap)  { wrap.style.display = 'none'; }
+    if (img)      { img.style.display = 'none'; }
+    if (loginBtn) { loginBtn.style.display = 'inline-block'; }
   }
 }
 
@@ -140,8 +141,6 @@ function samtuLogout() {
     });
   } catch(e) {}
   updateAvatarDisplay();
-  var wrap = document.getElementById('samtu-avatar-wrap');
-  if (wrap) wrap.style.display = 'none';
 }
 
 function checkCollaboratorPermission(repo, callback) {
@@ -633,7 +632,19 @@ setTimeout(function() {
   var img   = document.getElementById('samtu-user-avatar');
   var menu  = document.getElementById('samtu-avatar-menu');
   var logoutBtn = document.getElementById('samtu-logout-btn');
-  if (!wrap || !img || !menu) return;
+  var loginBtn2 = document.getElementById('samtu-login-btn');
+  if (!wrap) return;
+
+  if (loginBtn2) {
+    loginBtn2.addEventListener('click', function(e) {
+      e.preventDefault();
+      doGitHubLogin(function() {
+        fetchCurrentUser(function() {});
+      });
+    });
+  }
+
+  if (!img || !menu) return;
 
   img.addEventListener('click', function(e) {
     e.stopPropagation();
