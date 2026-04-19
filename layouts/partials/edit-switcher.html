@@ -211,13 +211,13 @@
 </div>
 
 <style>
-  #samtu-bottom-bar { position:fixed; bottom:0; left:0; right:0; height:26px; z-index:9998; display:flex; align-items:stretch; background:#112a52; border-top:1px solid rgba(255,255,255,.13); }
-  .samtu-bar-item { display:flex; align-items:center; gap:6px; padding:0 12px; color:rgba(255,255,255,.55); font-size:12px; font-family:inherit; cursor:pointer; white-space:nowrap; text-decoration:none; border:none; background:none; }
-  .samtu-bar-item:hover { background:rgba(255,255,255,.08); color:rgba(255,255,255,.9); }
-  .samtu-bar-item + .samtu-bar-item { border-left:1px solid rgba(255,255,255,.1); }
+  #samtu-bottom-bar { position:fixed; bottom:0; left:0; right:0; height:26px; z-index:9998; display:flex; align-items:stretch; background:#1a4a8a; border-top:1px solid rgba(255,255,255,.18); }
+  .samtu-bar-item { display:flex; align-items:center; gap:6px; padding:0 12px; color:rgba(255,255,255,.85) !important; font-size:12px; font-family:inherit; cursor:pointer; white-space:nowrap; text-decoration:none !important; border:none; background:none; }
+  .samtu-bar-item:hover { background:rgba(255,255,255,.12); color:#fff !important; }
+  .samtu-bar-item + .samtu-bar-item { border-left:1px solid rgba(255,255,255,.15); }
   .samtu-bar-item i { font-size:11px; }
-  #samtu-bar-center { flex:1; display:flex; align-items:center; justify-content:center; font-size:12px; color:rgba(255,255,255,.25); pointer-events:none; overflow:hidden; }
-  #samtu-gh-edit-btn { border-left:1px solid rgba(255,255,255,.1); }
+  #samtu-bar-center { flex:1; display:flex; align-items:center; justify-content:center; font-size:12px; color:rgba(255,255,255,.7); pointer-events:none; overflow:hidden; white-space:nowrap; }
+  #samtu-gh-edit-btn { border-left:1px solid rgba(255,255,255,.15); }
 </style>
 <div id="samtu-bottom-bar">
   <div id="qe-job-indicator" class="samtu-bar-item" title="{{ cond (eq $lang "en") "Click to see job history" "Klikk for å se jobbhistorikk" }}">
@@ -233,7 +233,7 @@
     <i class="fa fa-comments-o"></i>
     <span id="pg-issues-label">{{ cond (eq $lang "en") "Comments" "Kommentarer" }}</span>
   </div>
-  <div id="samtu-bar-center">{{ .Site.Title }}</div>
+  <div id="samtu-bar-center">SAMT-BU – Sammenhengende tjenester for barn og unge</div>
   {{ if .File }}
   <a id="samtu-gh-edit-btn" class="samtu-bar-item"
     href="{{ printf "https://github.com/SAMT-X/%s/edit/main/%s/_index.%s.md" $githubRepo $dirPath $lang }}"
