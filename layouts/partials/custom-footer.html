@@ -1432,7 +1432,9 @@ setTimeout(function() {
                 if (buildText) buildText.innerHTML = (delLang === 'en' ? 'Pull request created: ' : 'Pull request opprettet: ') +
                   (pr && pr.html_url ? '<a href="' + pr.html_url + '" target="_blank">#' + pr.number + '</a>' : '');
                 var doneBtn = document.getElementById('del-panel-done');
-                if (doneBtn) doneBtn.style.display = 'inline-block';
+                if (doneBtn) { doneBtn.style.display = 'inline-block'; doneBtn.onclick = closeDialog; }
+                var closeBtn = document.getElementById('del-panel-close');
+                if (closeBtn) closeBtn.style.display = 'none';
               });
           }
         })
