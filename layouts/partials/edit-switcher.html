@@ -31,11 +31,11 @@
   {{ end }}
 {{ end }}
 
+{{ $isModulePage := false }}
 {{ if .File }}
   {{/* path.Dir normaliserer Windows-backslash til forward slash */}}
   {{ $dir := path.Dir .File.Path }}
   {{ $rel := "" }}
-  {{ $isModulePage := false }}
 
   {{ if hasPrefix $dir "teams/" }}
     {{/* team-architecture modul */}}
@@ -139,7 +139,7 @@
       </a>
     </li>
     {{ end }}
-    {{ if and .File (ne $dirPath "content") }}
+    {{ if and .File (or (ne $dirPath "content") $isModulePage) }}
     <li>
       <a href="#" onclick="openNewChildDialog('{{ $githubRepo }}', '{{ $dirPath }}', '{{ $lang }}', '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-folder-o"></i>
