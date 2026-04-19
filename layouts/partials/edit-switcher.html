@@ -151,7 +151,7 @@
     {{ end }}
     {{ if .File }}
     <li style="border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;">
-      <a href="#" onclick="openCommentDialog('{{ $githubRepo }}', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}'); return false;">
+      <a href="#" onclick="openCommentDialog('{{ $githubRepo }}', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}', {{ .Params.id | jsonify }}); return false;">
         <i class="fa fa-comment-o"></i>
         <span>{{ cond (eq $lang "en") "Give feedback" "Gi kommentar" }}</span>
       </a>
@@ -229,6 +229,7 @@
     data-lang="{{ $lang }}"
     data-title="{{ .Title }}"
     data-permalink="{{ .RelPermalink }}"
+    data-page-id="{{ .Params.id }}"
     title="{{ cond (eq $lang "en") "Comments on this page" "Kommentarer til denne siden" }}">
     <i class="fa fa-comments-o"></i>
     <span id="pg-issues-label">{{ cond (eq $lang "en") "Comments" "Kommentarer" }}</span>
@@ -463,6 +464,10 @@
     <div style="padding:1.2rem 1.6rem 1.6rem;">
       <div id="cm-form-section">
         <p id="cm-intro" style="margin:0 0 .8rem; font-size:15px; color:#555;"></p>
+        <div style="margin-bottom:.75rem;">
+          <label id="cm-title-label" for="cm-title" style="display:block; font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.25rem;"></label>
+          <input id="cm-title" type="text" autocomplete="off" style="width:100%; box-sizing:border-box; height:2rem; padding:.3rem .5rem; border:1px solid #bbb; border-radius:3px; font-size:14px; font-family:inherit;">
+        </div>
         <div class="tiptap-toolbar" id="cm-toolbar">
           <button type="button" data-cm="bold" title="Fet"><b>B</b></button>
           <button type="button" data-cm="italic" title="Kursiv"><em>I</em></button>
@@ -473,6 +478,10 @@
           <button type="button" data-cm="link" title="Sett inn lenke">🔗</button>
         </div>
         <div id="cm-body-pm"></div>
+        <div style="margin-top:.75rem;">
+          <label id="cm-section-label" for="cm-section" style="display:block; font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.25rem;"></label>
+          <input id="cm-section" type="url" autocomplete="off" style="width:100%; box-sizing:border-box; height:2rem; padding:.3rem .5rem; border:1px solid #bbb; border-radius:3px; font-size:14px; font-family:inherit;">
+        </div>
         <div id="cm-error" style="display:none; margin:.7rem 0 0; padding:.6rem .9rem; border-radius:5px; background:#fff0f0; border:1px solid #f5c6c6; color:#900; font-size:15px;"></div>
         <div style="display:flex; gap:.7rem; justify-content:flex-end; margin-top:1rem;">
           <button type="button" id="cm-cancel" style="padding:.6rem 1.4rem; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer; font-size:16px; font-family:inherit;"></button>
