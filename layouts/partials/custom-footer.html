@@ -2216,7 +2216,7 @@ setTimeout(function() {
 
 </script>
 
-<!-- Gi kommentar: dialog og GitHub Issues API -->
+<!-- Gi kommentar: flytende WYSIWYG-dialog via GitHub Issues -->
 <script>
 (function() {
   var overlay = document.getElementById('cm-overlay');
@@ -2224,10 +2224,17 @@ setTimeout(function() {
 
   var cmRepo = '', cmLang = 'nb', cmPageTitle = '', cmPermalink = '', cmPageId = '';
   var cmEditor = null;
+  var cmImages = {}, cmImageMap = {};
+
+  function setStatus(text) {
+    var el = document.getElementById('cm-status-text');
+    if (el) el.textContent = text;
+  }
 
   function initCmEditor(callback) {
     if (cmEditor) {
       cmEditor.commands.setContent('');
+      cmImages = {}; cmImageMap = {};
       callback(); return;
     }
     loadTiptap(function() {
@@ -2237,11 +2244,34 @@ setTimeout(function() {
         extensions: [
           T.StarterKit,
           T.Link.configure({ openOnClick: false }),
+          T.Image,
           T.Markdown.configure({ html: false, transformPastedText: true })
         ],
         content: ''
       });
       setupCmToolbar(cmEditor);
+      cmEditor.view.dom.addEventListener('paste', function(e) {
+        var items = e.clipboardData && e.clipboardData.items;
+        if (!items) return;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            e.preventDefault();
+            (function(item) {
+              var ext = item.type === 'image/jpeg' ? 'jpg' : 'png';
+              var fname = 'kommentar-' + Date.now() + '.' + ext;
+              var reader = new FileReader();
+              reader.onload = function(evt) {
+                var dataUrl = evt.target.result;
+                cmImages[fname] = dataUrl.split(',')[1];
+                cmImageMap[dataUrl] = fname;
+                cmEditor.chain().focus().setImage({ src: dataUrl }).run();
+              };
+              reader.readAsDataURL(item.getAsFile());
+            })(items[i]);
+            break;
+          }
+        }
+      }, true);
       callback();
     });
   }
@@ -2257,6 +2287,8 @@ setTimeout(function() {
       switch (cmd) {
         case 'bold':   editor.chain().focus().toggleBold().run(); break;
         case 'italic': editor.chain().focus().toggleItalic().run(); break;
+        case 'h2':     editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
+        case 'h3':     editor.chain().focus().toggleHeading({ level: 3 }).run(); break;
         case 'ul':     editor.chain().focus().toggleBulletList().run(); break;
         case 'ol':     editor.chain().focus().toggleOrderedList().run(); break;
         case 'link':
@@ -2279,6 +2311,8 @@ setTimeout(function() {
       var active = false;
       if      (cmd === 'bold')   active = editor.isActive('bold');
       else if (cmd === 'italic') active = editor.isActive('italic');
+      else if (cmd === 'h2')     active = editor.isActive('heading', { level: 2 });
+      else if (cmd === 'h3')     active = editor.isActive('heading', { level: 3 });
       else if (cmd === 'ul')     active = editor.isActive('bulletList');
       else if (cmd === 'ol')     active = editor.isActive('orderedList');
       else if (cmd === 'link')   active = editor.isActive('link');
@@ -2289,14 +2323,17 @@ setTimeout(function() {
   function closeDialog() {
     overlay.style.display = 'none';
     if (cmEditor) cmEditor.commands.setContent('');
+    cmImages = {}; cmImageMap = {};
     document.getElementById('cm-title').value = '';
     document.getElementById('cm-section').value = '';
     document.getElementById('cm-error').style.display = 'none';
-    document.getElementById('cm-form-section').style.display = 'block';
+    document.getElementById('cm-form-section').style.display = 'flex';
     document.getElementById('cm-done-section').style.display = 'none';
+    setStatus('');
     var btn = document.getElementById('cm-submit');
     btn.disabled = false;
     btn.textContent = 'Send';
+    btn.style.background = '';
   }
 
   window.openCommentDialog = function(repo, lang, pageTitle, permalink, pageId) {
@@ -2315,15 +2352,14 @@ setTimeout(function() {
 
     var isEn = cmLang === 'en';
     document.getElementById('cm-heading').textContent = isEn ? 'Give feedback' : 'Gi kommentar';
-    document.getElementById('cm-intro').textContent = isEn
-      ? 'Your comment will be registered as a GitHub Issue on this page.'
-      : 'Kommentaren din blir registrert som en GitHub Issue på denne siden.';
-    document.getElementById('cm-cancel').textContent = isEn ? 'Cancel' : 'Avbryt';
+    document.getElementById('cm-cancel-btn').textContent = isEn ? 'Cancel' : 'Avbryt';
     document.getElementById('cm-submit').textContent = 'Send';
     document.getElementById('cm-submit').disabled = false;
-    document.getElementById('cm-form-section').style.display = 'block';
+    document.getElementById('cm-submit').style.background = '';
+    document.getElementById('cm-form-section').style.display = 'flex';
     document.getElementById('cm-done-section').style.display = 'none';
     document.getElementById('cm-error').style.display = 'none';
+    setStatus('');
 
     document.getElementById('cm-title-label').textContent = isEn ? 'Title' : 'Tittel';
     document.getElementById('cm-title').value = isEn
@@ -2333,23 +2369,40 @@ setTimeout(function() {
       ? 'Specific section (optional)'
       : 'Spesifikk del av siden (valgfritt)';
     document.getElementById('cm-section').placeholder = isEn
-      ? 'e.g. https://...#heading'
-      : 'f.eks. https://...#overskrift';
+      ? 'e.g. https://\u2026#heading'
+      : 'f.eks. https://\u2026#overskrift';
 
-    overlay.style.display = 'block';
+    overlay.style.display = 'flex';
+    window._applyDialogPos && window._applyDialogPos('cm-overlay');
     initCmEditor(function() {
       setTimeout(function() { if (cmEditor) cmEditor.commands.focus(); }, 50);
     });
   };
 
-  document.getElementById('cm-close-x').addEventListener('click', closeDialog);
-  document.getElementById('cm-cancel').addEventListener('click', closeDialog);
-  document.getElementById('cm-done-btn').addEventListener('click', closeDialog);
+  document.getElementById('cm-cancel-btn').addEventListener('click', closeDialog);
   overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDialog(); e.stopPropagation(); });
-  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeDialog(); });
+
+  function uploadCmImages(token, images) {
+    var names = Object.keys(images);
+    if (!names.length) return Promise.resolve({});
+    var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
+    var resolvedUrls = {};
+    return Promise.all(names.map(function(fname) {
+      return fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/contents/static/uploads/comments/' + fname, {
+        method: 'PUT', headers: h,
+        body: JSON.stringify({ message: 'Legg til vedlegg: ' + fname, content: images[fname] })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function() {
+        resolvedUrls[fname] = 'https://raw.githubusercontent.com/SAMT-X/samt-bu-docs/main/static/uploads/comments/' + fname;
+      })
+      .catch(function() {}); // fortsett selv om bildeopplasting feiler
+    })).then(function() { return resolvedUrls; });
+  }
 
   document.getElementById('cm-submit').addEventListener('click', function() {
-    var text = cmEditor ? cmEditor.storage.markdown.getMarkdown().trim() : '';
+    if (!cmEditor) return;
+    var text = cmEditor.storage.markdown.getMarkdown().trim();
     var isEn = cmLang === 'en';
     var errorEl = document.getElementById('cm-error');
     if (!text) {
@@ -2364,28 +2417,31 @@ setTimeout(function() {
     btn.disabled = true;
     btn.textContent = isEn ? 'Sending\u2026' : 'Sender\u2026';
     errorEl.style.display = 'none';
+    setStatus(isEn ? 'Uploading\u2026' : 'Laster opp\u2026');
 
-    var issueTitle = document.getElementById('cm-title').value.trim()
-      || (isEn ? 'Docs comment: ' + cmPageTitle : 'Kommentar til: ' + cmPageTitle);
-    var pageUrl = window.location.origin + cmPermalink;
-    var sectionUrl = document.getElementById('cm-section').value.trim();
+    uploadCmImages(token, cmImages).then(function(resolvedUrls) {
+      // Erstatt data-URLer med raw GitHub-URLer i Markdown
+      Object.keys(cmImageMap).forEach(function(dataUrl) {
+        var fname = cmImageMap[dataUrl];
+        var rawUrl = resolvedUrls[fname];
+        if (rawUrl) text = text.split(dataUrl).join(rawUrl);
+      });
 
-    var metaLines = isEn
-      ? ['**Page:** [' + cmPageTitle + '](' + pageUrl + ')']
-      : ['**Side:** [' + cmPageTitle + '](' + pageUrl + ')'];
-    if (cmPageId) metaLines.push((isEn ? '**ID:** `' : '**ID:** `') + cmPageId + '`');
-    if (sectionUrl) metaLines.push((isEn ? '**Section:** ' : '**Seksjon:** ') + sectionUrl);
+      setStatus('');
+      var issueTitle = document.getElementById('cm-title').value.trim()
+        || (isEn ? 'Docs comment: ' + cmPageTitle : 'Kommentar til: ' + cmPageTitle);
+      var pageUrl = window.location.origin + cmPermalink;
+      var sectionUrl = document.getElementById('cm-section').value.trim();
+      var metaLines = [(isEn ? '**Page:** ' : '**Side:** ') + '[' + cmPageTitle + '](' + pageUrl + ')'];
+      if (cmPageId) metaLines.push('**ID:** `' + cmPageId + '`');
+      if (sectionUrl) metaLines.push((isEn ? '**Section:** ' : '**Seksjon:** ') + sectionUrl);
+      var issueBody = metaLines.join('\n') + '\n\n---\n\n' + text;
 
-    var issueBody = metaLines.join('\n') + '\n\n---\n\n' + text;
-
-    fetch('https://api.github.com/repos/SAMT-X/' + cmRepo + '/issues', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'token ' + token,
-        'Accept': 'application/vnd.github+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ title: issueTitle, body: issueBody })
+      return fetch('https://api.github.com/repos/SAMT-X/' + cmRepo + '/issues', {
+        method: 'POST',
+        headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: issueTitle, body: issueBody })
+      });
     })
     .then(function(r) {
       if (!r.ok) return r.json().then(function(d) { throw new Error(d.message || r.status); });
@@ -2393,18 +2449,23 @@ setTimeout(function() {
     })
     .then(function(issue) {
       document.getElementById('cm-form-section').style.display = 'none';
-      document.getElementById('cm-done-section').style.display = 'block';
+      document.getElementById('cm-done-section').style.display = 'flex';
       document.getElementById('cm-done-text').textContent = isEn
         ? '\u2705 Your comment has been registered.'
         : '\u2705 Kommentaren din er registrert.';
       var link = document.getElementById('cm-issue-link');
       link.href = issue.html_url;
       link.textContent = isEn ? 'View issue on GitHub \u2192' : 'Se issue p\u00e5 GitHub \u2192';
-      document.getElementById('cm-done-btn').textContent = isEn ? 'Close' : 'Lukk';
+      btn.textContent = isEn ? 'Close' : 'Lukk';
+      btn.disabled = false;
+      btn.style.background = '#888';
+      btn.onclick = closeDialog;
+      document.getElementById('cm-cancel-btn').textContent = isEn ? 'Close window' : 'Lukk vinduet';
     })
     .catch(function(err) {
       btn.disabled = false;
       btn.textContent = 'Send';
+      setStatus('');
       errorEl.textContent = (isEn ? 'Something went wrong: ' : 'Noe gikk galt: ') + err.message;
       errorEl.style.display = 'block';
     });
@@ -2544,7 +2605,8 @@ setTimeout(function() {
 (function() {
   var DIALOGS = [
     { overlayId: 'qe-overlay', headerId: 'qe-header', maxBtnId: 'qe-maximize-btn' },
-    { overlayId: 'np-overlay', headerId: 'np-header', maxBtnId: 'np-maximize-btn' }
+    { overlayId: 'np-overlay', headerId: 'np-header', maxBtnId: 'np-maximize-btn' },
+    { overlayId: 'cm-overlay', headerId: 'cm-header', maxBtnId: 'cm-maximize-btn' }
   ];
 
   function saveState(overlay) {
