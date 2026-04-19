@@ -129,7 +129,7 @@
     <li>
       <a href="#" onclick="openEditDialog('{{ $githubRepo }}', '{{ $dirPath }}/_index.{{ $lang }}.md', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-pencil"></i>
-        <span>{{ cond (eq $lang "en") "Edit this chapter" "Rediger dette kapitlet" }}</span>
+        <span>{{ cond (eq $lang "en") "Edit this page" "Rediger denne siden" }}</span>
       </a>
     </li>
     {{ end }}
