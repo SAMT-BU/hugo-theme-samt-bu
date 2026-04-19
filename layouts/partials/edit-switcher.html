@@ -165,7 +165,7 @@
       </a>
     </li>
     {{ end }}
-    {{ if and .File (ne $entrySlug "") }}
+    {{ if .File }}
     <li style="border-top:2px solid #b8cad8; margin-top:5px; padding-top:4px;">
       <a href="{{ printf "https://github.com/SAMT-X/%s/edit/main/%s/_index.%s.md" $githubRepo $dirPath $lang }}" target="_blank" rel="noopener" style="color:#5577aa; font-style:italic;">
         <i class="fa fa-github"></i>
