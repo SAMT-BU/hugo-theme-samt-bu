@@ -210,35 +210,41 @@
   </div>
 </div>
 
-<div id="samtu-bottom-bar" style="position:fixed; bottom:0; left:0; z-index:9998; display:flex; align-items:stretch;">
-  <div id="qe-job-indicator" style="display:flex; background:rgba(30,30,30,0.93); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; align-items:center; gap:7px; cursor:pointer;" title="{{ cond (eq $lang "en") "Click to see job history" "Klikk for å se jobbhistorikk" }}">
-    <i class="fa fa-history" style="font-size:12px; opacity:.7;"></i>
-    <span style="opacity:.7;">{{ cond (eq $lang "en") "Build history" "Byggehistorikk" }}</span>
+<style>
+  #samtu-bottom-bar { position:fixed; bottom:0; left:0; right:0; height:26px; z-index:9998; display:flex; align-items:stretch; background:rgba(22,22,22,0.96); border-top:1px solid rgba(255,255,255,.08); }
+  .samtu-bar-item { display:flex; align-items:center; gap:6px; padding:0 12px; color:rgba(255,255,255,.55); font-size:12px; cursor:pointer; white-space:nowrap; text-decoration:none; }
+  .samtu-bar-item:hover { background:rgba(255,255,255,.07); color:rgba(255,255,255,.85); }
+  .samtu-bar-item + .samtu-bar-item { border-left:1px solid rgba(255,255,255,.08); }
+  .samtu-bar-item i { font-size:11px; }
+  #samtu-gh-edit-btn { margin-left:auto; border-left:1px solid rgba(255,255,255,.08); }
+</style>
+<div id="samtu-bottom-bar">
+  <div id="qe-job-indicator" class="samtu-bar-item" title="{{ cond (eq $lang "en") "Click to see job history" "Klikk for å se jobbhistorikk" }}">
+    <i class="fa fa-history"></i>
+    <span>{{ cond (eq $lang "en") "Build history" "Byggehistorikk" }}</span>
   </div>
-  <div id="pg-issues-btn"
+  <div id="pg-issues-btn" class="samtu-bar-item"
     data-repo="{{ $githubRepo }}"
     data-lang="{{ $lang }}"
     data-title="{{ .Title }}"
     data-permalink="{{ .RelPermalink }}"
-    style="display:flex; background:rgba(30,30,30,0.78); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; border-left:1px solid rgba(255,255,255,.12); border-radius:0 4px 0 0; align-items:center; gap:6px; cursor:pointer;"
     title="{{ cond (eq $lang "en") "Comments on this page" "Kommentarer til denne siden" }}">
-    <i class="fa fa-comments-o" style="font-size:12px; opacity:.7;"></i>
+    <i class="fa fa-comments-o"></i>
     <span id="pg-issues-label">{{ cond (eq $lang "en") "Comments" "Kommentarer" }}</span>
   </div>
+  {{ if .File }}
+  <a id="samtu-gh-edit-btn" class="samtu-bar-item"
+    href="{{ printf "https://github.com/SAMT-X/%s/edit/main/%s/_index.%s.md" $githubRepo $dirPath $lang }}"
+    target="_blank" rel="noopener"
+    title="{{ cond (eq $lang "en") "Edit this page in GitHub" "Endre denne siden i GitHub" }}">
+    <i class="fa fa-code-fork"></i>
+    <span>{{ cond (eq $lang "en") "Edit in GitHub" "Endre i GitHub" }}</span>
+  </a>
+  {{ end }}
 </div>
-{{ if .File }}
-<a id="samtu-gh-edit-btn"
-  href="{{ printf "https://github.com/SAMT-X/%s/edit/main/%s/_index.%s.md" $githubRepo $dirPath $lang }}"
-  target="_blank" rel="noopener"
-  style="position:fixed; bottom:0; right:0; z-index:9996; background:rgba(30,30,30,0.85); color:#e8e8e8; padding:3px 14px 3px 10px; font-size:13px; border-radius:4px 0 0 0; display:flex; align-items:center; gap:6px; text-decoration:none;"
-  title="{{ cond (eq $lang "en") "Edit this page in GitHub" "Endre denne siden i GitHub" }}">
-  <i class="fa fa-code-fork" style="font-size:12px; opacity:.7;"></i>
-  <span>{{ cond (eq $lang "en") "Edit in GitHub" "Endre i GitHub" }}</span>
-</a>
-{{ end }}
 
 {{/* Jobbhistorikk-dialog – åpnes ved klikk på qe-job-indicator */}}
-<div id="job-history-dialog" style="display:none; position:fixed; bottom:28px; left:0; z-index:99999; background:#1e1e1e; color:#e8e8e8; border-radius:0 6px 0 0; box-shadow:0 -2px 20px rgba(0,0,0,.55); min-width:340px; max-width:560px; font-size:13px; font-family:inherit;">
+<div id="job-history-dialog" style="display:none; position:fixed; bottom:26px; left:0; z-index:99999; background:#1e1e1e; color:#e8e8e8; border-radius:0 6px 0 0; box-shadow:0 -2px 20px rgba(0,0,0,.55); min-width:340px; max-width:560px; font-size:13px; font-family:inherit;">
   <div style="display:flex; align-items:stretch; justify-content:space-between; border-bottom:1px solid rgba(255,255,255,.1);">
     <div style="display:flex;">
       <button id="job-history-tab-mine" type="button" style="background:none; border:none; border-bottom:2px solid #7ec8e3; color:#e8e8e8; cursor:pointer; font-size:13px; font-weight:600; padding:8px 14px 6px; line-height:1;">{{ cond (eq $lang "en") "My jobs" "Mine" }}</button>
@@ -248,7 +254,7 @@
   </div>
   <div id="job-history-list" style="max-height:340px; overflow-y:auto;"></div>
 </div>
-<div id="page-update-banner" style="display:none; position:fixed; bottom:0; right:0; z-index:9997; background:#1a5c4a; color:#e8f5ef; padding:5px 16px 5px 12px; font-size:13px; border-radius:4px 0 0 0; align-items:center; gap:7px; cursor:pointer;">
+<div id="page-update-banner" style="display:none; position:fixed; bottom:26px; right:0; z-index:9997; background:#1a5c4a; color:#e8f5ef; padding:5px 16px 5px 12px; font-size:13px; border-radius:4px 0 0 0; align-items:center; gap:7px; cursor:pointer;">
   <i class="fa fa-refresh" style="font-size:12px; opacity:.85;"></i>
   <span>{{ cond (eq $lang "en") "Page updated – click to reload" "Siden er oppdatert – klikk for å laste inn" }}</span>
 </div>
