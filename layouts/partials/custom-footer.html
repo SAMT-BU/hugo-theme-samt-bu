@@ -620,7 +620,12 @@ setTimeout(function() {
   var toggle = document.getElementById('edit-toggle');
   var menu = document.getElementById('edit-menu');
   if (!toggle || !menu) return;
-  var _permChecked = false;
+
+  // Lagre originaltekster én gang – brukes til reset ved hvert åpning
+  menu.querySelectorAll('li a span').forEach(function(span) {
+    span.dataset.orig = span.textContent;
+  });
+
   toggle.addEventListener('click', function(e) {
     e.stopPropagation();
     menu.classList.toggle('open');
@@ -628,15 +633,17 @@ setTimeout(function() {
     var temaMenu = document.getElementById('tema-menu');
     if (langMenu) langMenu.classList.remove('open');
     if (temaMenu) temaMenu.classList.remove('open');
-    if (!_permChecked && menu.classList.contains('open') && getStoredToken()) {
+    if (menu.classList.contains('open') && getStoredToken()) {
       var repo = toggle.dataset.repo;
       if (repo) {
-        _permChecked = true;
+        // Reset til originaltekst (håndterer brukerbytte uten sidereload)
+        menu.querySelectorAll('li a span').forEach(function(span) {
+          if (span.dataset.orig) span.textContent = span.dataset.orig;
+        });
         checkCollaboratorPermission(repo, function(canWrite) {
           if (!canWrite) {
-            var isEn = document.documentElement.lang === 'en';
             menu.querySelectorAll('li a span').forEach(function(span) {
-              var t = span.textContent;
+              var t = span.dataset.orig || span.textContent;
               if (t === 'Rediger dette kapitlet') span.textContent = 'Foreslå endring av dette kapitlet';
               else if (t === 'Edit this chapter') span.textContent = 'Suggest change to this chapter';
               else if (t === 'Nytt kapittel etter dette') span.textContent = 'Foreslå nytt kapittel etter dette';
@@ -646,8 +653,6 @@ setTimeout(function() {
               else if (t === 'Slett denne siden') span.textContent = 'Foreslå sletting av denne siden';
               else if (t === 'Delete this page') span.textContent = 'Suggest deletion of this page';
             });
-            var toggleSpan = toggle.querySelector('.tema-active');
-            if (toggleSpan) toggleSpan.textContent = isEn ? 'Suggest' : 'Foreslå';
           }
         });
       }
