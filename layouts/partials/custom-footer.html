@@ -94,7 +94,7 @@ function checkBuildInProgress(filePath, callback) {
 // Hent og cache innlogget GitHub-brukernavn
 function fetchCurrentUser(callback) {
   var cached = localStorage.getItem('samt-bu-gh-user');
-  if (cached) { updateAvatarDisplay(); callback(cached); return; }
+  if (cached && localStorage.getItem('samt-bu-gh-avatar')) { updateAvatarDisplay(); callback(cached); return; }
   var token = getStoredToken();
   if (!token) { callback(null); return; }
   fetch('https://api.github.com/user', {
