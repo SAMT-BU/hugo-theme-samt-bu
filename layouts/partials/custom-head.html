@@ -229,12 +229,35 @@
   .a-text ul:not(.connected-bullets):not(.no-decoration):not(.a-list) ul ul {
     list-style: square !important;
   }
-  /* Ordered lists */
+  /* Ordered lists – fixed-size circles (DIN-bold finnes ikke → padding-metoden gir ujevne sirkler) */
   .a-text ol {
-    padding-left: 2em !important;
+    padding-left: 0 !important;
     margin-left: 0 !important;
+    list-style: none !important;
   }
-  .a-text ol li,
+  .a-text ol li {
+    display: flex !important;
+    align-items: flex-start !important;
+    padding-left: 0 !important;
+    margin-bottom: 8px !important;
+  }
+  .a-text ol li::before,
+  .a-text .a-circle-list li::before {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+    width: 22px !important;
+    height: 22px !important;
+    min-width: 22px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: static !important;
+    margin-left: 0 !important;
+    margin-right: 10px !important;
+    margin-top: 1px !important;
+  }
   #body ul li,
   #body ol li {
     margin-bottom: 4px !important;
