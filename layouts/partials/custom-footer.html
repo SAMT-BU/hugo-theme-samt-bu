@@ -2901,7 +2901,6 @@ setTimeout(function() {
 <!-- Flytt-modus: globale funksjoner – minifier omdøper aldri globale deklarasjoner -->
 <script>
 var _mvKey = 'samtu-move-state';
-var _mvOrigMenu = '';  // Lagrer original meny-HTML for gjenoppretting
 
 function _mvGet() { try { return JSON.parse(sessionStorage.getItem(_mvKey)); } catch(e) { return null; } }
 function _mvSet(s) { try { sessionStorage.setItem(_mvKey, JSON.stringify(s)); } catch(e) {} }
@@ -2909,77 +2908,113 @@ function _mvClear() { try { sessionStorage.removeItem(_mvKey); } catch(e) {} }
 function _mvEsc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function _mvRestoreMenu() {
-  var panel = document.getElementById('mv-mode-panel');
-  if (panel) panel.remove();
-  var menu = document.getElementById('edit-menu');
-  if (menu && _mvOrigMenu) { menu.innerHTML = _mvOrigMenu; _mvOrigMenu = ''; }
+  var dlg = document.getElementById('mv-float-dialog');
+  if (dlg) dlg.remove();
+  var toggle = document.getElementById('edit-toggle');
+  if (toggle) toggle.classList.remove('mv-disabled');
 }
 
 function _mvApply(state) {
   if (!state) return;
   var pg = window._samtuThisPage || {};
   var isEn = (pg.lang || state.lang) === 'en';
-  var isSource = (pg.perm === state.permalink);
+  var doCancel = function() { _mvClear(); window.location.reload(); };
 
-  // Modeless panel – vises på alle sider mens flytt-modus er aktiv
-  if (!document.getElementById('mv-mode-panel')) {
-    var panel = document.createElement('div');
-    panel.id = 'mv-mode-panel';
-    panel.innerHTML =
-      '<i class="fa fa-arrows" style="opacity:.75;font-size:12px;"></i>' +
-      '<span>' + (isEn ? 'Moving: ' : 'Flytt: ') + '<strong>' + _mvEsc(state.title) + '</strong></span>' +
-      '<button type="button" id="mv-panel-cancel">' + (isEn ? 'Cancel' : 'Avbryt') + '</button>';
-    document.body.appendChild(panel);
-    document.getElementById('mv-panel-cancel').onclick = function() {
-      _mvClear(); _mvOrigMenu = ''; window.location.reload();
-    };
+  // Deaktiver Endre-knappen mens dialog er åpen
+  var toggle = document.getElementById('edit-toggle');
+  if (toggle) {
+    toggle.classList.add('mv-disabled');
+    toggle.title = isEn ? 'Move mode active – cancel to use menu' : 'Flytt-modus aktiv – avbryt for å bruke menyen';
   }
 
-  // Endre-meny: vis bare flytt-valg (ingen "Moving:"-header – panelet tar den rollen)
-  var menu = document.getElementById('edit-menu');
-  if (!menu) return;
-  if (!_mvOrigMenu) _mvOrigMenu = menu.innerHTML;
-  menu.innerHTML = '';
+  // Opprett flytende dialog (kun én instans)
+  if (document.getElementById('mv-float-dialog')) return;
+  var dlg = document.createElement('div');
+  dlg.id = 'mv-float-dialog';
+  dlg.style.cssText = 'top:110px;right:24px;width:260px;background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.35);overflow:hidden;font-size:15px;';
 
-  if (isSource) {
-    var hint = document.createElement('li');
-    hint.style.cssText = 'padding:6px 14px;font-size:12px;color:#888;font-style:italic;pointer-events:none;';
-    hint.textContent = isEn ? 'Navigate to target in the sidebar →' : 'Naviger til målsted i sidemenyen →';
-    menu.appendChild(hint);
-  } else {
-    [['before', isEn ? '↑ Move here (before)' : '↑ Flytt hit (før)'],
-     ['after',  isEn ? '↓ Move here (after)'  : '↓ Flytt hit (etter)']].forEach(function(row) {
-      var li = document.createElement('li');
-      var a = document.createElement('a');
-      a.href = '#';
-      a.innerHTML = '<span>' + row[1] + '</span>';
-      (function(pos) { a.onclick = function(e) { e.preventDefault(); _mvDoHit(pos); }; })(row[0]);
-      li.appendChild(a);
-      menu.appendChild(li);
-    });
+  // Header (drag handle)
+  var hdr = document.createElement('div');
+  hdr.id = 'mv-float-header';
+  hdr.style.cssText = 'background:#1a4a8a;color:#fff;padding:9px 12px;display:flex;align-items:center;gap:8px;';
+  hdr.innerHTML =
+    '<i class="fa fa-arrows" style="opacity:.75;font-size:12px;"></i>' +
+    '<span style="flex:1;font-size:13px;font-weight:600;">' + (isEn ? 'Move chapter' : 'Flytt kapittel') + '</span>';
+  var xBtn = document.createElement('button');
+  xBtn.type = 'button';
+  xBtn.style.cssText = 'background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;font-size:17px;line-height:1;padding:0;';
+  xBtn.textContent = '✕'; xBtn.title = isEn ? 'Cancel move' : 'Avbryt flytt';
+  xBtn.onclick = doCancel;
+  hdr.appendChild(xBtn);
+
+  // Info-felt: hva flyttes
+  var info = document.createElement('div');
+  info.style.cssText = 'padding:10px 14px 8px;border-bottom:1px solid #e8edf3;';
+  info.innerHTML =
+    '<div style="font-size:11px;color:#888;margin-bottom:3px;">' + (isEn ? 'Moving:' : 'Flytt:') + '</div>' +
+    '<div style="font-size:14px;font-weight:600;color:#222;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + _mvEsc(state.title) + '">' + _mvEsc(state.title) + '</div>';
+
+  // Knapper + melding
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:10px 14px 12px;';
+  var hint = document.createElement('div');
+  hint.style.cssText = 'font-size:12px;color:#888;margin-bottom:8px;line-height:1.4;';
+  hint.textContent = isEn ? 'Navigate to target page, then click:' : 'Naviger til målsiden, og klikk:';
+
+  function makeBtn(pos, label) {
+    var btn = document.createElement('button');
+    btn.id = 'mv-float-btn'; btn.type = 'button';
+    btn.textContent = label;
+    btn.onclick = function() { _mvDoHit(pos); };
+    return btn;
   }
-  var sep = document.createElement('li');
-  sep.style.cssText = 'border-top:1px solid #e8edf3;margin-top:3px;padding-top:3px;';
+
+  var msgEl = document.createElement('div');
+  msgEl.id = 'mv-float-msg';
+  msgEl.style.cssText = 'display:none;font-size:12px;margin-top:8px;line-height:1.4;padding:5px 8px;border-radius:4px;';
+
+  var cancelLink = document.createElement('div');
+  cancelLink.style.cssText = 'margin-top:10px;text-align:right;';
   var ca = document.createElement('a');
-  ca.href = '#'; ca.style.color = '#b00020';
-  ca.innerHTML = '<i class="fa fa-times"></i> <span>' + (isEn ? 'Cancel move' : 'Avbryt flytt') + '</span>';
-  ca.onclick = function(e) { e.preventDefault(); _mvClear(); _mvOrigMenu = ''; window.location.reload(); };
-  sep.appendChild(ca);
-  menu.appendChild(sep);
+  ca.href = '#'; ca.style.cssText = 'font-size:12px;color:#b00020;';
+  ca.innerHTML = '<i class="fa fa-times"></i> ' + (isEn ? 'Cancel move' : 'Avbryt flytt');
+  ca.onclick = function(e) { e.preventDefault(); doCancel(); };
+  cancelLink.appendChild(ca);
+
+  body.appendChild(hint);
+  body.appendChild(makeBtn('before', isEn ? '↑ Move here (before)' : '↑ Flytt hit (før)'));
+  body.appendChild(makeBtn('after',  isEn ? '↓ Move here (after)'  : '↓ Flytt hit (etter)'));
+  body.appendChild(msgEl);
+  body.appendChild(cancelLink);
+
+  dlg.appendChild(hdr); dlg.appendChild(info); dlg.appendChild(body);
+  document.body.appendChild(dlg);
+
+  // Dragging
+  var dragX, dragY, startL, startT;
+  hdr.addEventListener('mousedown', function(e) {
+    if (e.target === xBtn || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    var r = dlg.getBoundingClientRect();
+    dragX = e.clientX; dragY = e.clientY;
+    startL = r.left; startT = r.top;
+    dlg.style.right = 'auto';
+    function onMove(ev) {
+      dlg.style.left = Math.max(0, startL + ev.clientX - dragX) + 'px';
+      dlg.style.top  = Math.max(0, startT + ev.clientY - dragY) + 'px';
+    }
+    function onUp() { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 }
 
 function _mvMsg(text, isError) {
-  var menu = document.getElementById('edit-menu');
-  if (!menu) return;
-  var el = menu.querySelector('.mv-msg');
-  if (!el) {
-    el = document.createElement('li');
-    el.className = 'mv-msg';
-    el.style.cssText = 'padding:5px 14px 8px;font-size:12px;line-height:1.45;max-width:230px;white-space:normal;';
-    var last = menu.querySelector('li:last-child');
-    menu.insertBefore(el, last);
-  }
+  var el = document.getElementById('mv-float-msg');
+  if (!el) return;
+  el.style.display = 'block';
   el.style.color = isError ? '#b00020' : '#444';
+  el.style.background = isError ? '#fff0f0' : '#f0f4f8';
   el.textContent = text;
 }
 
@@ -3134,8 +3169,8 @@ function _mvDoHit(position) {
     return _mvCommit(token,mvRepo,[{path:nbPath,content:nbNew},{path:enPath,content:enNew}],'Flytt kapittel: ny vekt '+newWeight+(dir?' ('+dir+')':''));
   }).then(function(){
     _mvClear();
-    _mvRestoreMenu();
-    _mvOpenBuildDialog(startTime, state.permalink, isEn, sourceEtag);  // ETag-basert → samme som pollQeBuild
+    _mvRestoreMenu();  // Fjern dialog + reaktiver Endre-knapp
+    _mvOpenBuildDialog(startTime, state.permalink, isEn, sourceEtag);
   }).catch(function(err){
     _mvMsg((isEn?'⚠ Error: ':'⚠ Feil: ')+err.message,true);
   });
