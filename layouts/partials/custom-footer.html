@@ -2099,6 +2099,206 @@ setTimeout(function() {
         return r.json();
       });
   }
+
+  // Move dialog – "Flytt dette kapitlet"
+  (function() {
+    var mvEl = document.getElementById('mv-overlay');
+    if (!mvEl) return;
+
+    var mvBody = document.getElementById('mv-body');
+    var mvStatusEl = document.getElementById('mv-status');
+    var mvLang = 'nb', mvRepo = '', mvDirPath = '', mvCurrentPermalink = '';
+
+    function closeMvDialog() { mvEl.style.display = 'none'; }
+
+    function setMvStatus(text, isError) {
+      mvStatusEl.style.display = 'block';
+      mvStatusEl.style.color = isError ? '#900' : '#444';
+      mvStatusEl.style.background = isError ? '#fff0f0' : '#f0f4f8';
+      mvStatusEl.textContent = text;
+    }
+
+    function disableMvBtns() {
+      mvBody.querySelectorAll('button').forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; });
+    }
+
+    function enableMvBtns() {
+      mvBody.querySelectorAll('button').forEach(function(b) { b.disabled = false; b.style.opacity = ''; });
+    }
+
+    document.getElementById('mv-close-x').addEventListener('click', closeMvDialog);
+    document.getElementById('mv-cancel').addEventListener('click', closeMvDialog);
+    mvEl.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMvDialog(); e.stopPropagation(); });
+    mvEl.addEventListener('click', function(e) { if (e.target === mvEl) closeMvDialog(); });
+
+    window.openMoveDialog = function(repo, dirPath, lang, currentPermalink) {
+      mvLang = lang || 'nb';
+      mvRepo = repo;
+      mvDirPath = dirPath;
+      mvCurrentPermalink = currentPermalink;
+
+      if (!getStoredToken()) {
+        doGitHubLogin(function() { window.openMoveDialog(repo, dirPath, lang, currentPermalink); });
+        return;
+      }
+
+      var isEn = mvLang === 'en';
+      document.getElementById('mv-heading').textContent = isEn ? 'Move this chapter' : 'Flytt dette kapitlet';
+      mvStatusEl.style.display = 'none';
+
+      var siblings = window._samtuMoveSiblings || [];
+      var currentPerm = window._samtuMoveCurrentPermalink || currentPermalink;
+      var sorted = siblings.slice().sort(function(a, b) { return a.weight - b.weight; });
+
+      mvBody.innerHTML = '';
+
+      if (sorted.length <= 1) {
+        mvBody.innerHTML = '<p style="color:#666; font-size:14px; margin:.5rem 0;">' +
+          (isEn ? 'No other chapters to move relative to.' : 'Ingen andre søskenkapitler å flytte relativt til.') + '</p>';
+      } else {
+        var info = document.createElement('p');
+        info.style.cssText = 'margin:0 0 .8rem; font-size:13px; color:#666; line-height:1.4;';
+        info.textContent = isEn
+          ? 'Click ↑ Before or ↓ After to reposition this chapter among its siblings.'
+          : 'Klikk ↑ Før eller ↓ Etter for å omplassere dette kapitlet blant søsknene.';
+        mvBody.appendChild(info);
+
+        var ul = document.createElement('ul');
+        ul.style.cssText = 'list-style:none; margin:0; padding:0;';
+
+        sorted.forEach(function(sib) {
+          var isCurrent = sib.relPermalink === currentPerm;
+          var sameRepo = sib.repo === mvRepo;
+
+          var li = document.createElement('li');
+          li.style.cssText = 'padding:.3rem .3rem; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:.4rem; min-height:2.1rem;';
+          if (isCurrent) { li.style.background = '#eef4ff'; li.style.borderRadius = '3px'; }
+
+          var titleSpan = document.createElement('span');
+          titleSpan.style.cssText = 'flex:1; font-size:14px;' + (isCurrent ? ' font-weight:700; color:#1a4a8a;' : '');
+          titleSpan.textContent = sib.linkTitle || sib.title;
+
+          if (isCurrent) {
+            var badge = document.createElement('span');
+            badge.style.cssText = 'font-size:10px; background:#1a4a8a; color:#fff; border-radius:3px; padding:1px 5px; margin-left:5px; vertical-align:middle;';
+            badge.textContent = isEn ? 'current' : 'nåværende';
+            titleSpan.appendChild(badge);
+          } else if (sib.isExternal) {
+            var extBadge = document.createElement('span');
+            extBadge.style.cssText = 'font-size:10px; color:#888; background:#f0f0f0; border-radius:3px; padding:1px 4px; margin-left:4px; vertical-align:middle;';
+            extBadge.textContent = sib.repo;
+            titleSpan.appendChild(extBadge);
+          }
+
+          li.appendChild(titleSpan);
+
+          if (!isCurrent) {
+            if (sameRepo) {
+              ['before', 'after'].forEach(function(pos) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.style.cssText = 'padding:2px 8px; border:1px solid #1a4a8a; border-radius:4px; background:#fff; color:#1a4a8a; cursor:pointer; font-size:11px; white-space:nowrap; flex-shrink:0;';
+                btn.textContent = pos === 'before' ? (isEn ? '↑ Before' : '↑ Før') : (isEn ? '↓ After' : '↓ Etter');
+                btn.title = pos === 'before'
+                  ? (isEn ? 'Move current chapter to just before this' : 'Flytt til rett foran dette kapitlet')
+                  : (isEn ? 'Move current chapter to just after this' : 'Flytt til rett etter dette kapitlet');
+                (function(targetSib, p) {
+                  btn.onclick = function() { doMoveWeight(sorted, currentPerm, targetSib, p); };
+                })(sib, pos);
+                li.appendChild(btn);
+              });
+            } else {
+              var note = document.createElement('span');
+              note.style.cssText = 'font-size:11px; color:#bbb; flex-shrink:0;';
+              note.title = isEn
+                ? 'In ' + sib.repo + ' – cross-repo reordering not yet supported'
+                : 'I ' + sib.repo + ' – støttes ikke på tvers av repos ennå';
+              note.textContent = isEn ? 'ext. repo' : 'ekst. repo';
+              li.appendChild(note);
+            }
+          }
+
+          ul.appendChild(li);
+        });
+        mvBody.appendChild(ul);
+      }
+
+      mvEl.style.display = 'flex';
+    };
+
+    function doMoveWeight(sortedAll, currentPerm, targetSib, position) {
+      var token = getStoredToken();
+      if (!token) { setMvStatus(mvLang === 'en' ? 'Not logged in.' : 'Ikke innlogget.', true); return; }
+      var isEn = mvLang === 'en';
+
+      // Same-repo siblings (excluding current), sorted by weight
+      var others = sortedAll.filter(function(s) { return s.relPermalink !== currentPerm && s.repo === mvRepo; });
+      var targetIdx = -1;
+      for (var i = 0; i < others.length; i++) {
+        if (others[i].relPermalink === targetSib.relPermalink) { targetIdx = i; break; }
+      }
+      if (targetIdx === -1) { setMvStatus(isEn ? 'Target not found.' : 'Mål ikke funnet.', true); return; }
+
+      var newWeight;
+      if (position === 'before') {
+        newWeight = targetIdx === 0
+          ? Math.max(1, others[0].weight - 10)
+          : Math.round((others[targetIdx - 1].weight + others[targetIdx].weight) / 2);
+      } else {
+        newWeight = targetIdx === others.length - 1
+          ? others[others.length - 1].weight + 10
+          : Math.round((others[targetIdx].weight + others[targetIdx + 1].weight) / 2);
+      }
+
+      var collision = false;
+      for (var j = 0; j < others.length; j++) {
+        if (others[j].weight === newWeight) { collision = true; break; }
+      }
+      if (collision) {
+        setMvStatus(isEn
+          ? 'Chapters have weights too close together. Adjust via the Edit dialog first.'
+          : 'Kapitlene har for like vekter. Juster via Rediger-dialogen og prøv igjen.',
+          true);
+        return;
+      }
+
+      disableMvBtns();
+      setMvStatus(isEn ? 'Saving…' : 'Lagrer…');
+
+      var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
+      var nbPath = mvDirPath + '/_index.nb.md';
+      var enPath = mvDirPath + '/_index.en.md';
+
+      Promise.all([
+        fetch('https://api.github.com/repos/SAMT-X/' + mvRepo + '/contents/' + nbPath, { headers: h, cache: 'no-store' }).then(function(r) { return r.json(); }),
+        fetch('https://api.github.com/repos/SAMT-X/' + mvRepo + '/contents/' + enPath, { headers: h, cache: 'no-store' }).then(function(r) { return r.json(); })
+      ])
+      .then(function(results) {
+        var nbRaw = decodeURIComponent(escape(atob(results[0].content.replace(/\n/g, ''))));
+        var enRaw = decodeURIComponent(escape(atob(results[1].content.replace(/\n/g, ''))));
+        var nbNew = nbRaw.replace(/^(weight:\s*)\d+/m, '$1' + newWeight);
+        var enNew = enRaw.replace(/^(weight:\s*)\d+/m, '$1' + newWeight);
+        if (nbNew === nbRaw) throw new Error(isEn ? 'weight field not found in NB file' : 'weight-felt ikke funnet i nb-fil');
+        if (enNew === enRaw) throw new Error(isEn ? 'weight field not found in EN file' : 'weight-felt ikke funnet i en-fil');
+        var dir = mvDirPath.replace(/^content\//, '');
+        var msg = 'Flytt kapittel: ny vekt ' + newWeight + (dir ? ' (' + dir + ')' : '');
+        return createFilesInOneCommit(token, mvRepo,
+          [{ path: nbPath, content: nbNew }, { path: enPath, content: enNew }],
+          msg, [], 'main', 'SAMT-X');
+      })
+      .then(function() {
+        samtuIncrementPending();
+        qeLang = mvLang;
+        qePermalink = mvCurrentPermalink;
+        closeMvDialog();
+        pollQeBuild(Date.now(), null);
+      })
+      .catch(function(err) {
+        setMvStatus((isEn ? 'Error: ' : 'Feil: ') + err.message, true);
+        enableMvBtns();
+      });
+    }
+  })();
 })();
 </script>
 
