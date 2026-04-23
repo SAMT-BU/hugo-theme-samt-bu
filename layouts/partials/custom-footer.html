@@ -2099,178 +2099,10 @@ setTimeout(function() {
         return r.json();
       });
   }
-  // Eksponér på window – minifier omdøper lokale funksjoner, window-refs er stabile
+  // Eksponér funksjoner minifieren ellers ville ha omdøpt
   window._samtuCommitFiles = createFilesInOneCommit;
   window._samtuPollBuild   = pollQeBuild;
-
-  // Flytt-modus (sessionStorage – overlever sidenavigering)
-  (function() {
-    var MV_KEY = 'samtu-move-state';
-    var pg = window._samtuThisPage || {};
-
-    function getMvState() { try { return JSON.parse(sessionStorage.getItem(MV_KEY)); } catch(e) { return null; } }
-    function setMvState(s) { try { sessionStorage.setItem(MV_KEY, JSON.stringify(s)); } catch(e) {} }
-    function clearMvState() { try { sessionStorage.removeItem(MV_KEY); } catch(e) {} }
-
-    function applyMoveMenu() {
-      var state = getMvState();
-      if (!state) return;
-      var isEn = (pg.lang || state.lang) === 'en';
-      var isSource = pg.perm === state.permalink;
-
-      var toggle = document.getElementById('edit-toggle');
-      if (toggle) toggle.classList.add('mv-active');
-
-      var menu = document.getElementById('edit-menu');
-      if (!menu) return;
-      menu.innerHTML = '';
-
-      // Overskrift: «Flytter: Kildetittel»
-      var esc = function(s) { return (s || '').replace(/[<>"&]/g, function(c) { return {'<':'&lt;','>':'&gt;','"':'&quot;','&':'&amp;'}[c]; }); };
-      var hdr = document.createElement('li');
-      hdr.style.cssText = 'padding:6px 14px 5px; font-size:12px; color:#555; border-bottom:1px solid #e5e9f0; cursor:default; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px; pointer-events:none; user-select:none;';
-      hdr.innerHTML = '<i class="fa fa-arrows" style="margin-right:5px; opacity:.6;"></i><span title="' + esc(state.title) + '">' + (isEn ? 'Moving: ' : 'Flytter: ') + '<strong>' + esc(state.title) + '</strong></span>';
-      menu.appendChild(hdr);
-
-      if (isSource) {
-        var hint = document.createElement('li');
-        hint.style.cssText = 'padding:6px 14px; font-size:12px; color:#888; font-style:italic; pointer-events:none;';
-        hint.textContent = isEn ? 'Navigate to target in the sidebar →' : 'Naviger til målsted i sidemenyen →';
-        menu.appendChild(hint);
-      } else {
-        [['before', '↑', isEn ? 'Move here (before)' : 'Flytt hit (før)'],
-         ['after',  '↓', isEn ? 'Move here (after)'  : 'Flytt hit (etter)']].forEach(function(row) {
-          var li = document.createElement('li');
-          var a = document.createElement('a');
-          a.href = '#';
-          a.innerHTML = '<i class="fa fa-arrow-' + (row[0] === 'before' ? 'up' : 'down') + '"></i> <span>' + row[2] + '</span>';
-          (function(pos) { a.onclick = function(e) { e.preventDefault(); doMoveHit(pos); }; })(row[0]);
-          li.appendChild(a);
-          menu.appendChild(li);
-        });
-      }
-
-      // Separator + Avbryt
-      var sep = document.createElement('li');
-      sep.style.cssText = 'border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;';
-      var ca = document.createElement('a');
-      ca.href = '#'; ca.style.color = '#b00020';
-      ca.innerHTML = '<i class="fa fa-times"></i> <span>' + (isEn ? 'Cancel move' : 'Avbryt flytt') + '</span>';
-      ca.onclick = function(e) { e.preventDefault(); clearMvState(); window.location.reload(); };
-      sep.appendChild(ca);
-      menu.appendChild(sep);
-    }
-
-    function showMvMsg(text, isError) {
-      var menu = document.getElementById('edit-menu');
-      if (!menu) return;
-      var el = menu.querySelector('.mv-msg');
-      if (!el) {
-        el = document.createElement('li');
-        el.className = 'mv-msg';
-        el.style.cssText = 'padding:5px 14px 8px; font-size:12px; line-height:1.45; max-width:230px; white-space:normal;';
-        var last = menu.querySelector('li:last-child');
-        menu.insertBefore(el, last);
-      }
-      el.style.color = isError ? '#b00020' : '#444';
-      el.textContent = text;
-    }
-
-    function doMoveHit(position) {
-      var state = getMvState();
-      if (!state) return;
-      var token = getStoredToken();
-      if (!token) { doGitHubLogin(function() { doMoveHit(position); }); return; }
-      var isEn = state.lang === 'en';
-
-      var siblings = (state.siblings || []).slice().sort(function(a, b) { return a.weight - b.weight; });
-      var others = siblings.filter(function(s) { return s.relPermalink !== state.permalink; });
-
-      var targetIdx = -1;
-      for (var i = 0; i < others.length; i++) {
-        if (others[i].relPermalink === pg.perm) { targetIdx = i; break; }
-      }
-      if (targetIdx === -1) {
-        showMvMsg(isEn
-          ? '⚠ Not at same level as source – cross-level moving not supported yet.'
-          : '⚠ Ikke på samme nivå som kilden – støttes ikke ennå.',
-          true); return;
-      }
-      if (others[targetIdx].repo !== state.repo) {
-        showMvMsg(isEn
-          ? '⚠ Different repo (' + others[targetIdx].repo + ') – not supported yet.'
-          : '⚠ Annet repo (' + others[targetIdx].repo + ') – støttes ikke ennå.',
-          true); return;
-      }
-
-      var newWeight;
-      if (position === 'before') {
-        newWeight = targetIdx === 0
-          ? Math.max(1, others[0].weight - 10)
-          : Math.round((others[targetIdx - 1].weight + others[targetIdx].weight) / 2);
-      } else {
-        newWeight = targetIdx === others.length - 1
-          ? others[others.length - 1].weight + 10
-          : Math.round((others[targetIdx].weight + others[targetIdx + 1].weight) / 2);
-      }
-      for (var j = 0; j < others.length; j++) {
-        if (others[j].weight === newWeight) {
-          showMvMsg(isEn
-            ? '⚠ Weights too close – adjust via Edit dialog first.'
-            : '⚠ For like vekter – juster via Rediger-dialogen.',
-            true); return;
-        }
-      }
-
-      showMvMsg(isEn ? 'Saving…' : 'Lagrer…', false);
-
-      var mvRepo = state.repo, mvDirPath = state.dirPath;
-      var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
-      var nbPath = mvDirPath + '/_index.nb.md';
-      var enPath = mvDirPath + '/_index.en.md';
-
-      Promise.all([
-        fetch('https://api.github.com/repos/SAMT-X/' + mvRepo + '/contents/' + nbPath, { headers: h, cache: 'no-store' }).then(function(r) { return r.json(); }),
-        fetch('https://api.github.com/repos/SAMT-X/' + mvRepo + '/contents/' + enPath, { headers: h, cache: 'no-store' }).then(function(r) { return r.json(); })
-      ])
-      .then(function(res) {
-        var nbRaw = decodeURIComponent(escape(atob(res[0].content.replace(/\n/g, ''))));
-        var enRaw = decodeURIComponent(escape(atob(res[1].content.replace(/\n/g, ''))));
-        var nbNew = nbRaw.replace(/^(weight:\s*)\d+/m, '$1' + newWeight);
-        var enNew = enRaw.replace(/^(weight:\s*)\d+/m, '$1' + newWeight);
-        if (nbNew === nbRaw) throw new Error('weight-felt ikke funnet i nb-fil');
-        if (enNew === enRaw) throw new Error('weight-felt ikke funnet i en-fil');
-        var dir = mvDirPath.replace(/^content\//, '');
-        return window._samtuCommitFiles(token, mvRepo,
-          [{ path: nbPath, content: nbNew }, { path: enPath, content: enNew }],
-          'Flytt kapittel: ny vekt ' + newWeight + (dir ? ' (' + dir + ')' : ''),
-          [], 'main', 'SAMT-X');
-      })
-      .then(function() {
-        clearMvState();
-        samtuIncrementPending();
-        qeLang = state.lang;
-        qePermalink = state.permalink;
-        showMvMsg(isEn ? '✓ Saved! Updating site…' : '✓ Lagret! Oppdaterer nettstedet…', false);
-        window._samtuPollBuild(Date.now(), null);
-      })
-      .catch(function(err) {
-        showMvMsg((isEn ? '⚠ Error: ' : '⚠ Feil: ') + err.message, true);
-      });
-    }
-
-    window.enterMoveMode = function(repo, dirPath, lang, permalink) {
-      if (!getStoredToken()) {
-        doGitHubLogin(function() { window.enterMoveMode(repo, dirPath, lang, permalink); });
-        return;
-      }
-      setMvState({ repo: repo, dirPath: dirPath, lang: lang, permalink: permalink,
-        title: pg.title || '', siblings: window._samtuMoveSiblings || [] });
-      applyMoveMenu();
-    };
-
-    if (getMvState()) applyMoveMenu();
-  })();
+  window._samtuSetQeNav    = function(lang, perm) { qeLang = lang; qePermalink = perm; };
 })();
 </script>
 
@@ -3067,5 +2899,167 @@ setTimeout(function() {
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && dialog.style.display !== 'none') closeHistory();
   });
+})();
+</script>
+
+<!-- Flytt-modus: separat script-blokk – ingen closure mot ytre IIFE, unngår minifier-scope-problem -->
+<script>
+(function() {
+  var MV_KEY = 'samtu-move-state';
+
+  function getMvState() { try { return JSON.parse(sessionStorage.getItem(MV_KEY)); } catch(e) { return null; } }
+  function setMvState(s) { try { sessionStorage.setItem(MV_KEY, JSON.stringify(s)); } catch(e) {} }
+  function clearMvState() { try { sessionStorage.removeItem(MV_KEY); } catch(e) {} }
+
+  function esc(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function applyMoveMenu() {
+    var state = getMvState();
+    if (!state) return;
+    var pg = window._samtuThisPage || {};
+    var isEn = (pg.lang || state.lang) === 'en';
+    var isSource = pg.perm === state.permalink;
+
+    var toggle = document.getElementById('edit-toggle');
+    if (toggle) toggle.classList.add('mv-active');
+
+    var menu = document.getElementById('edit-menu');
+    if (!menu) return;
+    menu.innerHTML = '';
+
+    // Overskrift
+    var hdr = document.createElement('li');
+    hdr.style.cssText = 'padding:6px 14px 5px; font-size:12px; color:#555; border-bottom:1px solid #e5e9f0; cursor:default; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px; pointer-events:none; user-select:none;';
+    hdr.innerHTML = '<i class="fa fa-arrows" style="margin-right:5px; opacity:.6;"></i><span title="' + esc(state.title) + '">' + (isEn ? 'Moving: ' : 'Flytter: ') + '<strong>' + esc(state.title) + '</strong></span>';
+    menu.appendChild(hdr);
+
+    if (isSource) {
+      var hint = document.createElement('li');
+      hint.style.cssText = 'padding:6px 14px; font-size:12px; color:#888; font-style:italic; pointer-events:none;';
+      hint.textContent = isEn ? 'Navigate to target in the sidebar →' : 'Naviger til målsted i sidemen\u00fyen →';
+      menu.appendChild(hint);
+    } else {
+      [['before', isEn ? '↑ Move here (before)' : '↑ Flytt hit (før)'],
+       ['after',  isEn ? '↓ Move here (after)'  : '↓ Flytt hit (etter)']].forEach(function(row) {
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.href = '#';
+        a.innerHTML = '<span>' + row[1] + '</span>';
+        (function(pos) { a.onclick = function(e) { e.preventDefault(); doMoveHit(pos); }; })(row[0]);
+        li.appendChild(a);
+        menu.appendChild(li);
+      });
+    }
+
+    // Avbryt
+    var sep = document.createElement('li');
+    sep.style.cssText = 'border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;';
+    var ca = document.createElement('a');
+    ca.href = '#'; ca.style.color = '#b00020';
+    ca.innerHTML = '<i class="fa fa-times"></i> <span>' + (isEn ? 'Cancel move' : 'Avbryt flytt') + '</span>';
+    ca.onclick = function(e) { e.preventDefault(); clearMvState(); window.location.reload(); };
+    sep.appendChild(ca);
+    menu.appendChild(sep);
+  }
+
+  function showMvMsg(text, isError) {
+    var menu = document.getElementById('edit-menu');
+    if (!menu) return;
+    var el = menu.querySelector('.mv-msg');
+    if (!el) {
+      el = document.createElement('li');
+      el.className = 'mv-msg';
+      el.style.cssText = 'padding:5px 14px 8px; font-size:12px; line-height:1.45; max-width:230px; white-space:normal;';
+      var last = menu.querySelector('li:last-child');
+      menu.insertBefore(el, last);
+    }
+    el.style.color = isError ? '#b00020' : '#444';
+    el.textContent = text;
+  }
+
+  function doMoveHit(position) {
+    var state = getMvState();
+    if (!state) return;
+    var pg = window._samtuThisPage || {};
+    var token = getStoredToken();
+    if (!token) { doGitHubLogin(function() { doMoveHit(position); }); return; }
+    var isEn = state.lang === 'en';
+
+    var siblings = (state.siblings || []).slice().sort(function(a, b) { return a.weight - b.weight; });
+    var others = siblings.filter(function(s) { return s.relPermalink !== state.permalink; });
+
+    var targetIdx = -1;
+    for (var i = 0; i < others.length; i++) {
+      if (others[i].relPermalink === pg.perm) { targetIdx = i; break; }
+    }
+    if (targetIdx === -1) {
+      showMvMsg(isEn ? '⚠ Not at same level – cross-level moving not yet supported.' : '⚠ Ikke på samme nivå som kilden – støttes ikke ennå.', true); return;
+    }
+    if (others[targetIdx].repo !== state.repo) {
+      showMvMsg(isEn ? '⚠ Different repo (' + others[targetIdx].repo + ') – not yet supported.' : '⚠ Annet repo (' + others[targetIdx].repo + ') – støttes ikke ennå.', true); return;
+    }
+
+    var newWeight;
+    if (position === 'before') {
+      newWeight = targetIdx === 0 ? Math.max(1, others[0].weight - 10) : Math.round((others[targetIdx - 1].weight + others[targetIdx].weight) / 2);
+    } else {
+      newWeight = targetIdx === others.length - 1 ? others[others.length - 1].weight + 10 : Math.round((others[targetIdx].weight + others[targetIdx + 1].weight) / 2);
+    }
+    for (var j = 0; j < others.length; j++) {
+      if (others[j].weight === newWeight) {
+        showMvMsg(isEn ? '⚠ Weights too close – adjust via Edit dialog first.' : '⚠ For like vekter – juster via Rediger-dialogen.', true); return;
+      }
+    }
+
+    showMvMsg(isEn ? 'Saving…' : 'Lagrer…', false);
+
+    var mvRepo = state.repo, mvDirPath = state.dirPath;
+    var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
+    var nbPath = mvDirPath + '/_index.nb.md';
+    var enPath = mvDirPath + '/_index.en.md';
+
+    Promise.all([
+      fetch('https://api.github.com/repos/SAMT-X/' + mvRepo + '/contents/' + nbPath, { headers: h, cache: 'no-store' }).then(function(r) { return r.json(); }),
+      fetch('https://api.github.com/repos/SAMT-X/' + mvRepo + '/contents/' + enPath, { headers: h, cache: 'no-store' }).then(function(r) { return r.json(); })
+    ])
+    .then(function(res) {
+      var nbRaw = decodeURIComponent(escape(atob(res[0].content.replace(/\n/g, ''))));
+      var enRaw = decodeURIComponent(escape(atob(res[1].content.replace(/\n/g, ''))));
+      var nbNew = nbRaw.replace(/^(weight:\s*)\d+/m, '$1' + newWeight);
+      var enNew = enRaw.replace(/^(weight:\s*)\d+/m, '$1' + newWeight);
+      if (nbNew === nbRaw) throw new Error('weight-felt ikke funnet i nb-fil');
+      if (enNew === enRaw) throw new Error('weight-felt ikke funnet i en-fil');
+      var dir = mvDirPath.replace(/^content\//, '');
+      return window._samtuCommitFiles(token, mvRepo,
+        [{ path: nbPath, content: nbNew }, { path: enPath, content: enNew }],
+        'Flytt kapittel: ny vekt ' + newWeight + (dir ? ' (' + dir + ')' : ''),
+        [], 'main', 'SAMT-X');
+    })
+    .then(function() {
+      clearMvState();
+      samtuIncrementPending();
+      window._samtuSetQeNav(state.lang, state.permalink);
+      showMvMsg(isEn ? '✓ Saved! Updating site…' : '✓ Lagret! Oppdaterer nettstedet…', false);
+      window._samtuPollBuild(Date.now(), null);
+    })
+    .catch(function(err) {
+      showMvMsg((isEn ? '⚠ Error: ' : '⚠ Feil: ') + err.message, true);
+    });
+  }
+
+  window.enterMoveMode = function(repo, dirPath, lang, permalink) {
+    if (!getStoredToken()) {
+      doGitHubLogin(function() { window.enterMoveMode(repo, dirPath, lang, permalink); });
+      return;
+    }
+    var pg = window._samtuThisPage || {};
+    setMvState({ repo: repo, dirPath: dirPath, lang: lang, permalink: permalink,
+      title: pg.title || '', siblings: window._samtuMoveSiblings || [] });
+    applyMoveMenu();
+  };
+
+  if (getMvState()) applyMoveMenu();
 })();
 </script>
