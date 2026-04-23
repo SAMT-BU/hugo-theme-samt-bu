@@ -1,5 +1,5 @@
 {{/* Edit switcher: dropdown for å redigere gjeldende side (WYSIWYG), opprette ny side, slette, osv.
-     Modul-sider (utkast/*, loesninger/cms-loesninger/samt-bu-docs/*, arkitektur/overordnet-arkitektur/*, pilotering/pilot-1, arkitektur/informasjonsarkitektur) peker til riktig repo.
+     Modul-sider (utkast/*, prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/*, arkitektur/overordnet-arkitektur/*, pilotering/pilot-1, arkitektur/informasjonsarkitektur) peker til riktig repo.
      Rot-sider i moduler er redigerbare; docs-rot forblir deaktivert (tom entrySlug). */}}
 {{ $lang := .Site.Language.Lang }}
 {{ $entrySlug := "" }}
@@ -44,10 +44,10 @@
     {{ $rel = strings.TrimPrefix "/" $rel }}
     {{ $githubRepo = "samt-bu-drafts" }}
 
-  {{ else if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}
+  {{ else if or (eq $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/") }}
     {{/* solution-samt-bu-docs modul */}}
     {{ $isModulePage = true }}
-    {{ $rel = strings.TrimPrefix "loesninger/cms-loesninger/samt-bu-docs" $dir }}
+    {{ $rel = strings.TrimPrefix "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
     {{ $githubRepo = "solution-samt-bu-docs" }}
 
@@ -98,8 +98,8 @@
   {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
     {{ $rel = strings.TrimPrefix "utkast" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
-  {{ else if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}
-    {{ $rel = strings.TrimPrefix "loesninger/cms-loesninger/samt-bu-docs" $dir }}
+  {{ else if or (eq $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/") }}
+    {{ $rel = strings.TrimPrefix "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
   {{ else if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}
     {{ $rel = strings.TrimPrefix "arkitektur/overordnet-arkitektur" $dir }}
@@ -111,7 +111,7 @@
   {{ if ne $rel "" }}
     {{ $githubRepoSibling := "samt-bu-docs" }}
     {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}{{ $githubRepoSibling = "samt-bu-drafts" }}{{ end }}
-    {{ if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}{{ $githubRepoSibling = "solution-samt-bu-docs" }}{{ end }}
+    {{ if or (eq $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/") }}{{ $githubRepoSibling = "solution-samt-bu-docs" }}{{ end }}
     {{ if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}{{ $githubRepoSibling = "team-architecture" }}{{ end }}
     {{/* team-pilot-1: kun rot-siden er modul, undermapper er lokale → sibling bruker samt-bu-docs (default) */}}
     {{ $parentRel := path.Dir $rel }}

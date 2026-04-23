@@ -54,7 +54,7 @@
     {{ $menuDir := path.Dir .File.Path }}
     {{ if eq $menuDir "utkast" }}
       {{ $menuRepo = "samt-bu-drafts" }}
-    {{ else if eq $menuDir "loesninger/cms-loesninger/samt-bu-docs" }}
+    {{ else if eq $menuDir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs" }}
       {{ $menuRepo = "solution-samt-bu-docs" }}
     {{ else if eq $menuDir "arkitektur/overordnet-arkitektur" }}
       {{ $menuRepo = "team-architecture" }}

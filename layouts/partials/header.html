@@ -121,7 +121,7 @@
                 {{ $dir := path.Dir .File.Path }}
                 {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
                   {{ $repo = "samt-bu-drafts" }}
-                {{ else if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}
+                {{ else if or (eq $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/") }}
                   {{ $repo = "solution-samt-bu-docs" }}
                 {{ else if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}
                   {{ $repo = "team-architecture" }}
