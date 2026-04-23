@@ -3063,7 +3063,7 @@ function _mvOpenBuildDialog(startTime, sourcePerm, isEn, oldEtag) {
     statusEl.textContent = isEn ? '✓ Published! Navigating to source page…' : '✓ Publisert! Navigerer til kildesiden…';
     doneBtn.style.display = 'inline-block';
     doneBtn.onclick = function() { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); };
-    setTimeout(function() { if (overlay.isConnected) { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); } }, 1500);
+    setTimeout(function() { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); }, 1500);
   }
   function onBuildError(reason) {
     clearInterval(timer);
