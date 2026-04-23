@@ -2972,23 +2972,6 @@ function _mvMsg(text, isError) {
   el.textContent = text;
 }
 
-function _mvPlayAudio(type) {
-  try {
-    var ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
-    function note(f, t, d) {
-      var o = ctx.createOscillator(), g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = f;
-      g.gain.setValueAtTime(0.22, ctx.currentTime + t);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + d);
-      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + d);
-    }
-    if (type === 'start') { note(440, 0, 0.12); note(554, 0.13, 0.18); }
-    else if (type === 'success') { note(523, 0, 0.12); note(659, 0.13, 0.12); note(784, 0.26, 0.28); }
-  } catch(e) {}
-}
-
 function _mvOpenBuildDialog(startTime, sourcePerm, isEn) {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;';
@@ -3003,7 +2986,6 @@ function _mvOpenBuildDialog(startTime, sourcePerm, isEn) {
   xBtn.type = 'button';
   xBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:20px;color:rgba(255,255,255,.7);line-height:1;padding:0 0 0 .75rem;';
   xBtn.textContent = '✕';
-  xBtn.onclick = function() { overlay.remove(); samtuDecrementPending(); };
   hdr.appendChild(ttl); hdr.appendChild(xBtn);
   var body = document.createElement('div');
   body.style.cssText = 'padding:1.5rem 1.6rem 1.6rem;';
@@ -3016,12 +2998,11 @@ function _mvOpenBuildDialog(startTime, sourcePerm, isEn) {
   closeBtn.type = 'button';
   closeBtn.style.cssText = 'padding:.6rem 1.4rem;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-size:16px;font-family:inherit;';
   closeBtn.textContent = isEn ? 'Close' : 'Lukk';
-  closeBtn.onclick = function() { overlay.remove(); samtuDecrementPending(); };
   var doneBtn = document.createElement('button');
   doneBtn.type = 'button';
   doneBtn.style.cssText = 'display:none;padding:.6rem 1.5rem;border:none;border-radius:5px;background:#1a4a8a;color:#fff;cursor:pointer;font-size:16px;font-family:inherit;font-weight:600;';
   doneBtn.textContent = isEn ? 'Go to source page →' : 'Gå til kildesiden →';
-  doneBtn.onclick = function() { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); };
+  doneBtn.onclick = function() { clearInterval(timer); samtuDecrementPending(); overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); };
   btns.appendChild(closeBtn); btns.appendChild(doneBtn);
   body.appendChild(statusEl); body.appendChild(btns);
   dlg.appendChild(hdr); dlg.appendChild(body);
@@ -3029,47 +3010,31 @@ function _mvOpenBuildDialog(startTime, sourcePerm, isEn) {
   document.body.appendChild(overlay);
 
   samtuIncrementPending();
-  var token = getStoredToken();
-  var h = { 'Accept': 'application/vnd.github+json' };
-  if (token) h['Authorization'] = 'token ' + token;
-  var elapsed = 0;
 
-  function check() {
-    if (!overlay.isConnected) return;
-    elapsed += 3;
-    fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h, cache: 'no-store' })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (!overlay.isConnected) return;
-        var runs = data.workflow_runs || [];
-        for (var i = 0; i < runs.length; i++) {
-          var run = runs[i];
-          if (new Date(run.created_at).getTime() < startTime - 60000) break;
-          if (run.status === 'completed' && run.conclusion === 'success') {
-            samtuDecrementPending();
-            _mvPlayAudio('success');
-            statusEl.textContent = isEn ? '✓ Published! Navigating to source page…' : '✓ Publisert! Navigerer til kildesiden…';
-            doneBtn.style.display = 'inline-block';
-            setTimeout(function() { if (overlay.isConnected) { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); } }, 1500);
-            return;
-          }
-          if (run.status === 'completed' && run.conclusion === 'cancelled') {
-            statusEl.textContent = (isEn ? 'Build cancelled – waiting (' : 'Bygg avbrutt – venter (') + elapsed + 's)…';
-            setTimeout(check, 3000); return;
-          }
-          if (run.status === 'completed') {
-            samtuDecrementPending();
-            statusEl.textContent = '⚠ ' + (run.conclusion || 'failed'); return;
-          }
-          statusEl.textContent = (isEn ? 'Updating site (' : 'Nettstedet oppdateres (') + elapsed + (isEn ? 's)…' : ' sek)…');
-          setTimeout(check, 3000); return;
-        }
-        statusEl.textContent = (isEn ? 'Waiting for build (' : 'Venter på bygg (') + elapsed + (isEn ? 's)…' : ' sek)…');
-        setTimeout(check, 4000);
-      })
-      .catch(function() { if (overlay.isConnected) setTimeout(check, 5000); });
-  }
-  setTimeout(check, 4000);
+  // startGhPoll er en global funksjon (linje ~382) – håndterer audio og GitHub Actions-polling
+  var timer = startGhPoll(
+    startTime,
+    function onDone() {
+      clearInterval(timer);
+      samtuDecrementPending();
+      statusEl.textContent = isEn ? '✓ Published! Navigating to source page…' : '✓ Publisert! Navigerer til kildesiden…';
+      doneBtn.style.display = 'inline-block';
+      setTimeout(function() { if (overlay.isConnected) { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); } }, 1500);
+    },
+    function onError(reason) {
+      clearInterval(timer);
+      samtuDecrementPending();
+      statusEl.textContent = '⚠ ' + (reason || 'Feil');
+    },
+    function onStatus(msg) {
+      if (!overlay.isConnected) { clearInterval(timer); return; }
+      statusEl.textContent = msg || (isEn ? 'Waiting for build…' : 'Venter på bygg…');
+    }
+  );
+
+  var doClose = function() { clearInterval(timer); samtuDecrementPending(); overlay.remove(); };
+  closeBtn.onclick = doClose;
+  xBtn.onclick = doClose;
 }
 
 function _mvCommit(token, repo, files, msg) {
@@ -3102,6 +3067,7 @@ function _mvCommit(token, repo, files, msg) {
 }
 
 function _mvDoHit(position) {
+  samtuUnlockAudio(); // Lås opp Web Audio under brukergestus (klikk)
   var state = _mvGet();
   if (!state) return;
   var pg = window._samtuThisPage || {};
@@ -3137,9 +3103,8 @@ function _mvDoHit(position) {
     return _mvCommit(token,mvRepo,[{path:nbPath,content:nbNew},{path:enPath,content:enNew}],'Flytt kapittel: ny vekt '+newWeight+(dir?' ('+dir+')':''));
   }).then(function(){
     _mvClear();
-    _mvRestoreMenu();          // Gjenopprett normal Endre-meny
-    _mvPlayAudio('start');     // Lyd: bygg startet
-    _mvOpenBuildDialog(startTime, state.permalink, isEn);  // Åpne byggestatus-dialog
+    _mvRestoreMenu();                                       // Gjenopprett normal Endre-meny
+    _mvOpenBuildDialog(startTime, state.permalink, isEn);  // Åpne byggestatus-dialog (audio via startGhPoll)
   }).catch(function(err){
     _mvMsg((isEn?'⚠ Error: ':'⚠ Feil: ')+err.message,true);
   });
