@@ -1,5 +1,5 @@
 {{/* Edit switcher: dropdown for å redigere gjeldende side (WYSIWYG), opprette ny side, slette, osv.
-     Modul-sider (teams/*, utkast/*, loesninger/cms-loesninger/samt-bu-docs/*) peker til riktig repo.
+     Modul-sider (utkast/*, loesninger/cms-loesninger/samt-bu-docs/*, arkitektur/overordnet-arkitektur/*, pilotering/pilot-1, pilotering/pilot-1/informasjonsarkitektur) peker til riktig repo.
      Rot-sider i moduler er redigerbare; docs-rot forblir deaktivert (tom entrySlug). */}}
 {{ $lang := .Site.Language.Lang }}
 {{ $entrySlug := "" }}
@@ -37,15 +37,7 @@
   {{ $dir := path.Dir .File.Path }}
   {{ $rel := "" }}
 
-  {{ if hasPrefix $dir "teams/" }}
-    {{/* Modul under teams/ – repo-navn = mappenavn, fungerer for alle teams */}}
-    {{ $isModulePage = true }}
-    {{ $teamName := index (split (strings.TrimPrefix "teams/" $dir) "/") 0 }}
-    {{ $rel = strings.TrimPrefix (printf "teams/%s" $teamName) $dir }}
-    {{ $rel = strings.TrimPrefix "/" $rel }}
-    {{ $githubRepo = $teamName }}
-
-  {{ else if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
+  {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
     {{/* samt-bu-drafts modul */}}
     {{ $isModulePage = true }}
     {{ $rel = strings.TrimPrefix "utkast" $dir }}
@@ -103,11 +95,7 @@
 {{ if and .File (ne $entrySlug "") }}
   {{ $rel := "" }}
   {{ $dir := path.Dir .File.Path }}
-  {{ if hasPrefix $dir "teams/" }}
-    {{ $teamName := index (split (strings.TrimPrefix "teams/" $dir) "/") 0 }}
-    {{ $rel = strings.TrimPrefix (printf "teams/%s" $teamName) $dir }}
-    {{ $rel = strings.TrimPrefix "/" $rel }}
-  {{ else if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
+  {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
     {{ $rel = strings.TrimPrefix "utkast" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
   {{ else if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}
@@ -122,7 +110,6 @@
   {{ end }}
   {{ if ne $rel "" }}
     {{ $githubRepoSibling := "samt-bu-docs" }}
-    {{ if hasPrefix $dir "teams/" }}{{ $githubRepoSibling = index (split (strings.TrimPrefix "teams/" $dir) "/") 0 }}{{ end }}
     {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}{{ $githubRepoSibling = "samt-bu-drafts" }}{{ end }}
     {{ if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}{{ $githubRepoSibling = "solution-samt-bu-docs" }}{{ end }}
     {{ if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}{{ $githubRepoSibling = "team-architecture" }}{{ end }}
