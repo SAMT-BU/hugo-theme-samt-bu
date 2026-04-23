@@ -72,6 +72,12 @@
     {{ $rel = "" }}
     {{ $githubRepo = "team-pilot-1" }}
 
+  {{ else if eq $dir "pilotering/pilot-1/informasjonsarkitektur" }}
+    {{/* team-semantics modul – kun rot-siden; undermapper er lokale i samt-bu-docs */}}
+    {{ $isModulePage = true }}
+    {{ $rel = "" }}
+    {{ $githubRepo = "team-semantics" }}
+
   {{ else }}
     {{/* Lokal docs-side */}}
     {{ $rel = strings.TrimPrefix "." $dir }}
