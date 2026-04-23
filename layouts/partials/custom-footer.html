@@ -2099,10 +2099,6 @@ setTimeout(function() {
         return r.json();
       });
   }
-  // Eksponér funksjoner minifieren ellers ville ha omdøpt
-  window._samtuCommitFiles = createFilesInOneCommit;
-  window._samtuPollBuild   = pollQeBuild;
-  window._samtuSetQeNav    = function(lang, perm) { qeLang = lang; qePermalink = perm; };
 })();
 </script>
 
@@ -2966,6 +2962,65 @@ function _mvMsg(text, isError) {
   el.textContent = text;
 }
 
+function _mvCommit(token, repo, files, msg) {
+  var base = 'https://api.github.com/repos/SAMT-X/' + repo;
+  var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
+  var headSha;
+  return fetch(base + '/git/ref/heads/main', { headers: h, cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(ref) {
+      headSha = ref.object.sha;
+      return fetch(base + '/git/commits/' + headSha, { headers: h, cache: 'no-store' });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(commit) {
+      var items = files.map(function(f) { return { path: f.path, mode: '100644', type: 'blob', content: f.content }; });
+      return fetch(base + '/git/trees', { method: 'POST', headers: h, body: JSON.stringify({ base_tree: commit.tree.sha, tree: items }) });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(tree) {
+      return fetch(base + '/git/commits', { method: 'POST', headers: h, body: JSON.stringify({ message: msg, tree: tree.sha, parents: [headSha] }) });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(newCommit) {
+      return fetch(base + '/git/refs/heads/main', { method: 'PATCH', headers: h, body: JSON.stringify({ sha: newCommit.sha }) });
+    })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); });
+      return r.json();
+    });
+}
+
+function _mvPollAndNav(startTime, targetUrl) {
+  samtuIncrementPending();
+  var token = getStoredToken();
+  var h = { 'Accept': 'application/vnd.github+json' };
+  if (token) h['Authorization'] = 'token ' + token;
+  function check() {
+    fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h, cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var runs = data.workflow_runs || [];
+        for (var i = 0; i < runs.length; i++) {
+          var run = runs[i];
+          if (new Date(run.created_at).getTime() < startTime - 60000) break;
+          if (run.status === 'completed' && run.conclusion === 'success') {
+            samtuDecrementPending();
+            window.location.href = targetUrl + '?_=' + Date.now();
+            return;
+          }
+          if (run.status === 'in_progress' || run.status === 'queued' || run.status === 'waiting') {
+            setTimeout(check, 3000);
+            return;
+          }
+        }
+        setTimeout(check, 5000);
+      })
+      .catch(function() { setTimeout(check, 5000); });
+  }
+  setTimeout(check, 5000);
+}
+
 function _mvDoHit(position) {
   var state = _mvGet();
   if (!state) return;
@@ -2977,8 +3032,8 @@ function _mvDoHit(position) {
   var others = siblings.filter(function(s){return s.relPermalink!==state.permalink;});
   var targetIdx = -1;
   for (var i=0;i<others.length;i++){if(others[i].relPermalink===pg.perm){targetIdx=i;break;}}
-  if (targetIdx===-1){_mvMsg(isEn?'⚠ Not at same level – cross-level not yet supported.':'⚠ Ikke same nivå som kjelda – støttes ikkje enno.',true);return;}
-  if (others[targetIdx].repo!==state.repo){_mvMsg(isEn?'⚠ Different repo ('+others[targetIdx].repo+') – not yet supported.':'⚠ Anna repo ('+others[targetIdx].repo+') – støttes ikkje enno.',true);return;}
+  if (targetIdx===-1){_mvMsg(isEn?'⚠ Not at same level – cross-level not yet supported.':'⚠ Ikke på samme nivå som kilden – støttes ikke ennå.',true);return;}
+  if (others[targetIdx].repo!==state.repo){_mvMsg(isEn?'⚠ Different repo ('+others[targetIdx].repo+') – not yet supported.':'⚠ Annet repo ('+others[targetIdx].repo+') – støttes ikke ennå.',true);return;}
   var newWeight;
   if (position==='before'){newWeight=targetIdx===0?Math.max(1,others[0].weight-10):Math.round((others[targetIdx-1].weight+others[targetIdx].weight)/2);}
   else{newWeight=targetIdx===others.length-1?others[others.length-1].weight+10:Math.round((others[targetIdx].weight+others[targetIdx+1].weight)/2);}
@@ -2987,6 +3042,7 @@ function _mvDoHit(position) {
   var mvRepo=state.repo, mvDirPath=state.dirPath;
   var h={'Authorization':'token '+token,'Accept':'application/vnd.github+json'};
   var nbPath=mvDirPath+'/_index.nb.md', enPath=mvDirPath+'/_index.en.md';
+  var startTime = Date.now();
   Promise.all([
     fetch('https://api.github.com/repos/SAMT-X/'+mvRepo+'/contents/'+nbPath,{headers:h,cache:'no-store'}).then(function(r){return r.json();}),
     fetch('https://api.github.com/repos/SAMT-X/'+mvRepo+'/contents/'+enPath,{headers:h,cache:'no-store'}).then(function(r){return r.json();})
@@ -2995,16 +3051,14 @@ function _mvDoHit(position) {
     var enRaw=decodeURIComponent(escape(atob(res[1].content.replace(/\n/g,''))));
     var nbNew=nbRaw.replace(/^(weight:\s*)\d+/m,'$1'+newWeight);
     var enNew=enRaw.replace(/^(weight:\s*)\d+/m,'$1'+newWeight);
-    if(nbNew===nbRaw)throw new Error('weight-felt ikkje funne i nb-fil');
-    if(enNew===enRaw)throw new Error('weight-felt ikkje funne i en-fil');
+    if(nbNew===nbRaw)throw new Error('weight-felt ikke funnet i nb-fil');
+    if(enNew===enRaw)throw new Error('weight-felt ikke funnet i en-fil');
     var dir=mvDirPath.replace(/^content\//,'');
-    return window._samtuCommitFiles(token,mvRepo,[{path:nbPath,content:nbNew},{path:enPath,content:enNew}],'Flytt kapittel: ny vekt '+newWeight+(dir?' ('+dir+')':''),[],  'main','SAMT-X');
+    return _mvCommit(token,mvRepo,[{path:nbPath,content:nbNew},{path:enPath,content:enNew}],'Flytt kapittel: ny vekt '+newWeight+(dir?' ('+dir+')':''));
   }).then(function(){
     _mvClear();
-    samtuIncrementPending();
-    window._samtuSetQeNav(state.lang,state.permalink);
-    _mvMsg(isEn?'✓ Saved! Updating site…':'✓ Lagra! Oppdaterer nettstad…',false);
-    window._samtuPollBuild(Date.now(),null);
+    _mvMsg(isEn?'✓ Saved! Waiting for build…':'✓ Lagret! Venter på bygg…',false);
+    _mvPollAndNav(startTime, state.permalink);
   }).catch(function(err){
     _mvMsg((isEn?'⚠ Error: ':'⚠ Feil: ')+err.message,true);
   });
