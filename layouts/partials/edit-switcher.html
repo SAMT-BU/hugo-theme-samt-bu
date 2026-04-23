@@ -122,6 +122,7 @@
   {{ end }}
 {{ end }}
 
+<script>window._samtuThisPage={{ dict "repo" $githubRepo "dirPath" $dirPath "lang" $lang "perm" .RelPermalink "weight" .Weight "title" .Title "slug" $entrySlug | jsonify | safeJS }};</script>
 <div id="samtu-avatar-wrap" style="position:relative; margin-right:6px; line-height:0; display:inline-block;">
   <a href="#" id="samtu-login-btn" style="display:none; color:rgba(255,255,255,.8); font-size:13px; text-decoration:none; vertical-align:middle; white-space:nowrap; border:1px solid rgba(255,255,255,.4); border-radius:4px; padding:3px 9px; line-height:1.6;">{{ cond (eq $lang "en") "Log in" "Logg inn" }}</a>
   <img id="samtu-user-avatar" src="" alt="" style="display:none; width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,.55); cursor:pointer; vertical-align:middle;" title="">
