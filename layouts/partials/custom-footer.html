@@ -2099,6 +2099,9 @@ setTimeout(function() {
         return r.json();
       });
   }
+  // Eksponér på window – minifier omdøper lokale funksjoner, window-refs er stabile
+  window._samtuCommitFiles = createFilesInOneCommit;
+  window._samtuPollBuild   = pollQeBuild;
 
   // Flytt-modus (sessionStorage – overlever sidenavigering)
   (function() {
@@ -2238,7 +2241,7 @@ setTimeout(function() {
         if (nbNew === nbRaw) throw new Error('weight-felt ikke funnet i nb-fil');
         if (enNew === enRaw) throw new Error('weight-felt ikke funnet i en-fil');
         var dir = mvDirPath.replace(/^content\//, '');
-        return createFilesInOneCommit(token, mvRepo,
+        return window._samtuCommitFiles(token, mvRepo,
           [{ path: nbPath, content: nbNew }, { path: enPath, content: enNew }],
           'Flytt kapittel: ny vekt ' + newWeight + (dir ? ' (' + dir + ')' : ''),
           [], 'main', 'SAMT-X');
@@ -2249,7 +2252,7 @@ setTimeout(function() {
         qeLang = state.lang;
         qePermalink = state.permalink;
         showMvMsg(isEn ? '✓ Saved! Updating site…' : '✓ Lagret! Oppdaterer nettstedet…', false);
-        pollQeBuild(Date.now(), null);
+        window._samtuPollBuild(Date.now(), null);
       })
       .catch(function(err) {
         showMvMsg((isEn ? '⚠ Error: ' : '⚠ Feil: ') + err.message, true);
