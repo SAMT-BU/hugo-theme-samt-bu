@@ -59,6 +59,13 @@
     {{ $rel = strings.TrimPrefix "/" $rel }}
     {{ $githubRepo = "solution-samt-bu-docs" }}
 
+  {{ else if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}
+    {{/* team-architecture modul, montert under arkitektur/ */}}
+    {{ $isModulePage = true }}
+    {{ $rel = strings.TrimPrefix "arkitektur/overordnet-arkitektur" $dir }}
+    {{ $rel = strings.TrimPrefix "/" $rel }}
+    {{ $githubRepo = "team-architecture" }}
+
   {{ else }}
     {{/* Lokal docs-side */}}
     {{ $rel = strings.TrimPrefix "." $dir }}
@@ -94,6 +101,9 @@
   {{ else if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}
     {{ $rel = strings.TrimPrefix "loesninger/cms-loesninger/samt-bu-docs" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
+  {{ else if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}
+    {{ $rel = strings.TrimPrefix "arkitektur/overordnet-arkitektur" $dir }}
+    {{ $rel = strings.TrimPrefix "/" $rel }}
   {{ else }}
     {{ $rel = strings.TrimPrefix "." $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
@@ -103,6 +113,7 @@
     {{ if hasPrefix $dir "teams/" }}{{ $githubRepoSibling = index (split (strings.TrimPrefix "teams/" $dir) "/") 0 }}{{ end }}
     {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}{{ $githubRepoSibling = "samt-bu-drafts" }}{{ end }}
     {{ if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}{{ $githubRepoSibling = "solution-samt-bu-docs" }}{{ end }}
+    {{ if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}{{ $githubRepoSibling = "team-architecture" }}{{ end }}
     {{ $parentRel := path.Dir $rel }}
     {{ $parentDirPath := cond (eq $parentRel ".") "content" (printf "content/%s" $parentRel) }}
     {{ $siblingRepo = $githubRepoSibling }}
