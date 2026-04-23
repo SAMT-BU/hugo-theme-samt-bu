@@ -2901,10 +2901,19 @@ setTimeout(function() {
 <!-- Flytt-modus: globale funksjoner – minifier omdøper aldri globale deklarasjoner -->
 <script>
 var _mvKey = 'samtu-move-state';
+var _mvOrigMenu = '';  // Lagrer original meny-HTML for gjenoppretting
+
 function _mvGet() { try { return JSON.parse(sessionStorage.getItem(_mvKey)); } catch(e) { return null; } }
 function _mvSet(s) { try { sessionStorage.setItem(_mvKey, JSON.stringify(s)); } catch(e) {} }
 function _mvClear() { try { sessionStorage.removeItem(_mvKey); } catch(e) {} }
 function _mvEsc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function _mvRestoreMenu() {
+  var toggle = document.getElementById('edit-toggle');
+  if (toggle) toggle.classList.remove('mv-active');
+  var menu = document.getElementById('edit-menu');
+  if (menu && _mvOrigMenu) { menu.innerHTML = _mvOrigMenu; _mvOrigMenu = ''; }
+}
 
 function _mvApply(state) {
   if (!state) return;
@@ -2915,6 +2924,7 @@ function _mvApply(state) {
   if (toggle) toggle.classList.add('mv-active');
   var menu = document.getElementById('edit-menu');
   if (!menu) return;
+  if (!_mvOrigMenu) _mvOrigMenu = menu.innerHTML;  // Lagre original før vi endrer
   menu.innerHTML = '';
   var hdr = document.createElement('li');
   hdr.style.cssText = 'padding:6px 14px 5px;font-size:12px;color:#555;border-bottom:1px solid #e5e9f0;cursor:default;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;pointer-events:none;user-select:none;';
@@ -2923,7 +2933,7 @@ function _mvApply(state) {
   if (isSource) {
     var hint = document.createElement('li');
     hint.style.cssText = 'padding:6px 14px;font-size:12px;color:#888;font-style:italic;pointer-events:none;';
-    hint.textContent = isEn ? 'Navigate to target in the sidebar →' : 'Naviger til målsted i sidemenøen →';
+    hint.textContent = isEn ? 'Navigate to target in the sidebar →' : 'Naviger til målsted i sidemenyen →';
     menu.appendChild(hint);
   } else {
     [['before', isEn ? '↑ Move here (before)' : '↑ Flytt hit (før)'],
@@ -2942,7 +2952,7 @@ function _mvApply(state) {
   var ca = document.createElement('a');
   ca.href = '#'; ca.style.color = '#b00020';
   ca.innerHTML = '<i class="fa fa-times"></i> <span>' + (isEn ? 'Cancel move' : 'Avbryt flytt') + '</span>';
-  ca.onclick = function(e) { e.preventDefault(); _mvClear(); window.location.reload(); };
+  ca.onclick = function(e) { e.preventDefault(); _mvClear(); _mvOrigMenu = ''; window.location.reload(); };
   sep.appendChild(ca);
   menu.appendChild(sep);
 }
@@ -2960,6 +2970,106 @@ function _mvMsg(text, isError) {
   }
   el.style.color = isError ? '#b00020' : '#444';
   el.textContent = text;
+}
+
+function _mvPlayAudio(type) {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    function note(f, t, d) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.22, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + d);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + d);
+    }
+    if (type === 'start') { note(440, 0, 0.12); note(554, 0.13, 0.18); }
+    else if (type === 'success') { note(523, 0, 0.12); note(659, 0.13, 0.12); note(784, 0.26, 0.28); }
+  } catch(e) {}
+}
+
+function _mvOpenBuildDialog(startTime, sourcePerm, isEn) {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  var dlg = document.createElement('div');
+  dlg.style.cssText = 'background:#fff;border-radius:8px;width:min(460px,92vw);color:#222;box-shadow:0 12px 40px rgba(0,0,0,.32);font-size:16px;font-family:inherit;overflow:hidden;';
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:.85rem 1.3rem;background:#1a4a8a;color:#fff;';
+  var ttl = document.createElement('h3');
+  ttl.style.cssText = 'margin:0;font-size:17px;font-weight:700;';
+  ttl.textContent = isEn ? 'Moving chapter' : 'Flytt kapittel';
+  var xBtn = document.createElement('button');
+  xBtn.type = 'button';
+  xBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:20px;color:rgba(255,255,255,.7);line-height:1;padding:0 0 0 .75rem;';
+  xBtn.textContent = '✕';
+  xBtn.onclick = function() { overlay.remove(); samtuDecrementPending(); };
+  hdr.appendChild(ttl); hdr.appendChild(xBtn);
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:1.5rem 1.6rem 1.6rem;';
+  var statusEl = document.createElement('p');
+  statusEl.style.cssText = 'margin:0 0 1.3rem;font-size:16px;color:#444;';
+  statusEl.textContent = isEn ? 'Waiting for site to update…' : 'Venter på at nettstedet oppdateres…';
+  var btns = document.createElement('div');
+  btns.style.cssText = 'display:flex;gap:.7rem;justify-content:flex-end;';
+  var closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.style.cssText = 'padding:.6rem 1.4rem;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-size:16px;font-family:inherit;';
+  closeBtn.textContent = isEn ? 'Close' : 'Lukk';
+  closeBtn.onclick = function() { overlay.remove(); samtuDecrementPending(); };
+  var doneBtn = document.createElement('button');
+  doneBtn.type = 'button';
+  doneBtn.style.cssText = 'display:none;padding:.6rem 1.5rem;border:none;border-radius:5px;background:#1a4a8a;color:#fff;cursor:pointer;font-size:16px;font-family:inherit;font-weight:600;';
+  doneBtn.textContent = isEn ? 'Go to source page →' : 'Gå til kildesiden →';
+  doneBtn.onclick = function() { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); };
+  btns.appendChild(closeBtn); btns.appendChild(doneBtn);
+  body.appendChild(statusEl); body.appendChild(btns);
+  dlg.appendChild(hdr); dlg.appendChild(body);
+  overlay.appendChild(dlg);
+  document.body.appendChild(overlay);
+
+  samtuIncrementPending();
+  var token = getStoredToken();
+  var h = { 'Accept': 'application/vnd.github+json' };
+  if (token) h['Authorization'] = 'token ' + token;
+  var elapsed = 0;
+
+  function check() {
+    if (!overlay.isConnected) return;
+    elapsed += 3;
+    fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h, cache: 'no-store' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!overlay.isConnected) return;
+        var runs = data.workflow_runs || [];
+        for (var i = 0; i < runs.length; i++) {
+          var run = runs[i];
+          if (new Date(run.created_at).getTime() < startTime - 60000) break;
+          if (run.status === 'completed' && run.conclusion === 'success') {
+            samtuDecrementPending();
+            _mvPlayAudio('success');
+            statusEl.textContent = isEn ? '✓ Published! Navigating to source page…' : '✓ Publisert! Navigerer til kildesiden…';
+            doneBtn.style.display = 'inline-block';
+            setTimeout(function() { if (overlay.isConnected) { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); } }, 1500);
+            return;
+          }
+          if (run.status === 'completed' && run.conclusion === 'cancelled') {
+            statusEl.textContent = (isEn ? 'Build cancelled – waiting (' : 'Bygg avbrutt – venter (') + elapsed + 's)…';
+            setTimeout(check, 3000); return;
+          }
+          if (run.status === 'completed') {
+            samtuDecrementPending();
+            statusEl.textContent = '⚠ ' + (run.conclusion || 'failed'); return;
+          }
+          statusEl.textContent = (isEn ? 'Updating site (' : 'Nettstedet oppdateres (') + elapsed + (isEn ? 's)…' : ' sek)…');
+          setTimeout(check, 3000); return;
+        }
+        statusEl.textContent = (isEn ? 'Waiting for build (' : 'Venter på bygg (') + elapsed + (isEn ? 's)…' : ' sek)…');
+        setTimeout(check, 4000);
+      })
+      .catch(function() { if (overlay.isConnected) setTimeout(check, 5000); });
+  }
+  setTimeout(check, 4000);
 }
 
 function _mvCommit(token, repo, files, msg) {
@@ -2989,36 +3099,6 @@ function _mvCommit(token, repo, files, msg) {
       if (!r.ok) return r.json().then(function(j) { throw new Error(j.message || r.statusText); });
       return r.json();
     });
-}
-
-function _mvPollAndNav(startTime, targetUrl) {
-  samtuIncrementPending();
-  var token = getStoredToken();
-  var h = { 'Accept': 'application/vnd.github+json' };
-  if (token) h['Authorization'] = 'token ' + token;
-  function check() {
-    fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: h, cache: 'no-store' })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        var runs = data.workflow_runs || [];
-        for (var i = 0; i < runs.length; i++) {
-          var run = runs[i];
-          if (new Date(run.created_at).getTime() < startTime - 60000) break;
-          if (run.status === 'completed' && run.conclusion === 'success') {
-            samtuDecrementPending();
-            window.location.href = targetUrl + '?_=' + Date.now();
-            return;
-          }
-          if (run.status === 'in_progress' || run.status === 'queued' || run.status === 'waiting') {
-            setTimeout(check, 3000);
-            return;
-          }
-        }
-        setTimeout(check, 5000);
-      })
-      .catch(function() { setTimeout(check, 5000); });
-  }
-  setTimeout(check, 5000);
 }
 
 function _mvDoHit(position) {
@@ -3057,8 +3137,9 @@ function _mvDoHit(position) {
     return _mvCommit(token,mvRepo,[{path:nbPath,content:nbNew},{path:enPath,content:enNew}],'Flytt kapittel: ny vekt '+newWeight+(dir?' ('+dir+')':''));
   }).then(function(){
     _mvClear();
-    _mvMsg(isEn?'✓ Saved! Waiting for build…':'✓ Lagret! Venter på bygg…',false);
-    _mvPollAndNav(startTime, state.permalink);
+    _mvRestoreMenu();          // Gjenopprett normal Endre-meny
+    _mvPlayAudio('start');     // Lyd: bygg startet
+    _mvOpenBuildDialog(startTime, state.permalink, isEn);  // Åpne byggestatus-dialog
   }).catch(function(err){
     _mvMsg((isEn?'⚠ Error: ':'⚠ Feil: ')+err.message,true);
   });
@@ -3072,11 +3153,10 @@ function enterMoveMode(repo, dirPath, lang, permalink) {
   var pg = window._samtuThisPage || {};
   var state = {repo:repo, dirPath:dirPath, lang:lang, permalink:permalink,
     title:pg.title||'', siblings:window._samtuMoveSiblings||[]};
-  _mvSet(state);      // For kryssside-navigering
-  _mvApply(state);    // Direkte – ingen sessionStorage-roundtrip
+  _mvSet(state);
+  _mvApply(state);
 }
 
-// Gjennopprett flytt-modus etter sidenavigering
 var _mvResume = _mvGet();
 if (_mvResume) _mvApply(_mvResume);
 </script>
