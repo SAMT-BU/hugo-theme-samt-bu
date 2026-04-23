@@ -72,8 +72,7 @@
         {{if .Params.alwaysopen}}alwaysopen{{end}}
         ">
       <a href="{{ .RelPermalink}}">
-        <span>{{safeHTML .Params.Pre}}{{ partial "status-symbol.html" . }}{{.LinkTitle}}{{safeHTML .Params.Post}}</span>
-        {{ if $menuRepo }}<span class="menu-repo-dot" title="SAMT-X/{{ $menuRepo }}"></span>{{ end }}
+        <span{{ if $menuRepo }} class="menu-repo-external" title="SAMT-X/{{ $menuRepo }}"{{ end }}>{{safeHTML .Params.Pre}}{{ partial "status-symbol.html" . }}{{.LinkTitle}}{{safeHTML .Params.Post}}</span>
 
         {{if .Params.titleSup }}
           <sup>{{.Params.titleSup}}</sup>
@@ -122,8 +121,7 @@
      {{if eq .RelPermalink $currentNode.RelPermalink}}active{{end}}
       ">
         <a href="{{ .RelPermalink}}">
-        <span>{{safeHTML .Params.Pre}}{{ partial "status-symbol.html" . }}{{.LinkTitle}}{{safeHTML .Params.Post}}</span>
-        {{ if $menuRepo }}<span class="menu-repo-dot" title="SAMT-X/{{ $menuRepo }}"></span>{{ end }}
+        <span{{ if $menuRepo }} class="menu-repo-external" title="SAMT-X/{{ $menuRepo }}"{{ end }}>{{safeHTML .Params.Pre}}{{ partial "status-symbol.html" . }}{{.LinkTitle}}{{safeHTML .Params.Post}}</span>
         {{ if $showvisitedlinks}}<i style="color:grey" class="fa fa-circle-thin read-icon"></i>{{end}}
         </a></li>
      {{ end }}
