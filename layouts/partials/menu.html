@@ -52,11 +52,11 @@
   {{ $menuRepo := "" }}
   {{ if .File }}
     {{ $menuDir := path.Dir .File.Path }}
-    {{ if or (eq $menuDir "utkast") (hasPrefix $menuDir "utkast/") }}
+    {{ if eq $menuDir "utkast" }}
       {{ $menuRepo = "samt-bu-drafts" }}
-    {{ else if or (eq $menuDir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $menuDir "loesninger/cms-loesninger/samt-bu-docs/") }}
+    {{ else if eq $menuDir "loesninger/cms-loesninger/samt-bu-docs" }}
       {{ $menuRepo = "solution-samt-bu-docs" }}
-    {{ else if or (eq $menuDir "arkitektur/overordnet-arkitektur") (hasPrefix $menuDir "arkitektur/overordnet-arkitektur/") }}
+    {{ else if eq $menuDir "arkitektur/overordnet-arkitektur" }}
       {{ $menuRepo = "team-architecture" }}
     {{ else if eq $menuDir "pilotering/pilot-1" }}
       {{ $menuRepo = "team-pilot-1" }}
