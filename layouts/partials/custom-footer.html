@@ -2909,8 +2909,8 @@ function _mvClear() { try { sessionStorage.removeItem(_mvKey); } catch(e) {} }
 function _mvEsc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function _mvRestoreMenu() {
-  var toggle = document.getElementById('edit-toggle');
-  if (toggle) toggle.classList.remove('mv-active');
+  var panel = document.getElementById('mv-mode-panel');
+  if (panel) panel.remove();
   var menu = document.getElementById('edit-menu');
   if (menu && _mvOrigMenu) { menu.innerHTML = _mvOrigMenu; _mvOrigMenu = ''; }
 }
@@ -2920,16 +2920,27 @@ function _mvApply(state) {
   var pg = window._samtuThisPage || {};
   var isEn = (pg.lang || state.lang) === 'en';
   var isSource = (pg.perm === state.permalink);
-  var toggle = document.getElementById('edit-toggle');
-  if (toggle) toggle.classList.add('mv-active');
+
+  // Modeless panel – vises på alle sider mens flytt-modus er aktiv
+  if (!document.getElementById('mv-mode-panel')) {
+    var panel = document.createElement('div');
+    panel.id = 'mv-mode-panel';
+    panel.innerHTML =
+      '<i class="fa fa-arrows" style="opacity:.75;font-size:12px;"></i>' +
+      '<span>' + (isEn ? 'Moving: ' : 'Flytt: ') + '<strong>' + _mvEsc(state.title) + '</strong></span>' +
+      '<button type="button" id="mv-panel-cancel">' + (isEn ? 'Cancel' : 'Avbryt') + '</button>';
+    document.body.appendChild(panel);
+    document.getElementById('mv-panel-cancel').onclick = function() {
+      _mvClear(); _mvOrigMenu = ''; window.location.reload();
+    };
+  }
+
+  // Endre-meny: vis bare flytt-valg (ingen "Moving:"-header – panelet tar den rollen)
   var menu = document.getElementById('edit-menu');
   if (!menu) return;
-  if (!_mvOrigMenu) _mvOrigMenu = menu.innerHTML;  // Lagre original før vi endrer
+  if (!_mvOrigMenu) _mvOrigMenu = menu.innerHTML;
   menu.innerHTML = '';
-  var hdr = document.createElement('li');
-  hdr.style.cssText = 'padding:6px 14px 5px;font-size:12px;color:#555;border-bottom:1px solid #e5e9f0;cursor:default;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px;pointer-events:none;user-select:none;';
-  hdr.innerHTML = '<i class="fa fa-arrows" style="margin-right:5px;opacity:.6;"></i><span title="' + _mvEsc(state.title) + '">' + (isEn ? 'Moving: ' : 'Flytter: ') + '<strong>' + _mvEsc(state.title) + '</strong></span>';
-  menu.appendChild(hdr);
+
   if (isSource) {
     var hint = document.createElement('li');
     hint.style.cssText = 'padding:6px 14px;font-size:12px;color:#888;font-style:italic;pointer-events:none;';

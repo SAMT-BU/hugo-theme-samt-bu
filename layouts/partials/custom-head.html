@@ -716,10 +716,38 @@
     color: #4a7fb5;
   }
 
-  /* Flytt-modus: Endre-knapp farges oransje */
-  #edit-toggle.mv-active .tema-active {
-    color: #e8820c !important;
+  /* Flytt-modus: modeless panel */
+  #mv-mode-panel {
+    position: fixed;
+    top: 66px;
+    left: 0;
+    right: 0;
+    z-index: 9990;
+    background: #1a4a8a;
+    color: #fff;
+    padding: 6px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-family: inherit;
+    box-shadow: 0 2px 8px rgba(0,0,0,.28);
+    line-height: 1.4;
   }
+  #mv-mode-panel button {
+    margin-left: auto;
+    padding: 3px 11px;
+    border: 1px solid rgba(255,255,255,.4);
+    border-radius: 4px;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+  #mv-mode-panel button:hover { background: rgba(255,255,255,.15); }
+  @media (max-width: 767px) { #mv-mode-panel { top: 0; } }
 
   /* Edit-on-GitHub link at bottom — reduce gap from content */
   .adocs-content {
