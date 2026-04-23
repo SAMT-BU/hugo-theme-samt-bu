@@ -2972,7 +2972,7 @@ function _mvMsg(text, isError) {
   el.textContent = text;
 }
 
-function _mvOpenBuildDialog(startTime, sourcePerm, isEn) {
+function _mvOpenBuildDialog(startTime, sourcePerm, isEn, oldEtag) {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;';
   var dlg = document.createElement('div');
@@ -3002,7 +3002,6 @@ function _mvOpenBuildDialog(startTime, sourcePerm, isEn) {
   doneBtn.type = 'button';
   doneBtn.style.cssText = 'display:none;padding:.6rem 1.5rem;border:none;border-radius:5px;background:#1a4a8a;color:#fff;cursor:pointer;font-size:16px;font-family:inherit;font-weight:600;';
   doneBtn.textContent = isEn ? 'Go to source page →' : 'Gå til kildesiden →';
-  doneBtn.onclick = function() { clearInterval(timer); samtuDecrementPending(); overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); };
   btns.appendChild(closeBtn); btns.appendChild(doneBtn);
   body.appendChild(statusEl); body.appendChild(btns);
   dlg.appendChild(hdr); dlg.appendChild(body);
@@ -3010,31 +3009,47 @@ function _mvOpenBuildDialog(startTime, sourcePerm, isEn) {
   document.body.appendChild(overlay);
 
   samtuIncrementPending();
+  var timer;
 
-  // startGhPoll er en global funksjon (linje ~382) – håndterer audio og GitHub Actions-polling
-  var timer = startGhPoll(
-    startTime,
-    function onDone() {
-      clearInterval(timer);
-      samtuDecrementPending();
-      statusEl.textContent = isEn ? '✓ Published! Navigating to source page…' : '✓ Publisert! Navigerer til kildesiden…';
-      doneBtn.style.display = 'inline-block';
-      setTimeout(function() { if (overlay.isConnected) { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); } }, 1500);
-    },
-    function onError(reason) {
-      clearInterval(timer);
-      samtuDecrementPending();
-      statusEl.textContent = '⚠ ' + (reason || 'Feil');
-    },
-    function onStatus(msg) {
+  function onBuildDone() {
+    clearInterval(timer);
+    samtuDecrementPending();
+    statusEl.textContent = isEn ? '✓ Published! Navigating to source page…' : '✓ Publisert! Navigerer til kildesiden…';
+    doneBtn.style.display = 'inline-block';
+    doneBtn.onclick = function() { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); };
+    setTimeout(function() { if (overlay.isConnected) { overlay.remove(); window.location.href = sourcePerm + '?_=' + Date.now(); } }, 1500);
+  }
+  function onBuildError(reason) {
+    clearInterval(timer);
+    samtuDecrementPending();
+    statusEl.textContent = '⚠ ' + (reason || 'Feil');
+  }
+
+  if (oldEtag) {
+    // ETag-basert polling – nøyaktig som pollQeBuild med oldEtag
+    samtuPlayStart();
+    var attempts = 0;
+    timer = setInterval(function() {
       if (!overlay.isConnected) { clearInterval(timer); return; }
-      statusEl.textContent = msg || (isEn ? 'Waiting for build…' : 'Venter på bygg…');
-    }
-  );
+      if (++attempts > 180) { clearInterval(timer); samtuPlayFailure(); onBuildError(isEn ? 'Timeout' : 'Tidsavbrudd'); return; }
+      fetch(sourcePerm + '?_cf=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
+        .then(function(r) {
+          var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
+          if (r.ok && newEtag && newEtag !== oldEtag) { samtuPlaySuccess(); onBuildDone(); }
+          else statusEl.textContent = isEn ? 'Updating site (' + attempts + 's)…' : 'Nettstedet oppdateres (' + attempts + ' sek)…';
+        })
+        .catch(function() {});
+    }, 1000);
+  } else {
+    // Fallback: startGhPoll (håndterer samtuPlayStart/Success/Failure internt)
+    timer = startGhPoll(startTime, onBuildDone, onBuildError, function(msg) {
+      if (!overlay.isConnected) { clearInterval(timer); return; }
+      statusEl.textContent = msg || '';
+    });
+  }
 
   var doClose = function() { clearInterval(timer); samtuDecrementPending(); overlay.remove(); };
-  closeBtn.onclick = doClose;
-  xBtn.onclick = doClose;
+  closeBtn.onclick = doClose; xBtn.onclick = doClose;
 }
 
 function _mvCommit(token, repo, files, msg) {
@@ -3089,6 +3104,11 @@ function _mvDoHit(position) {
   var h={'Authorization':'token '+token,'Accept':'application/vnd.github+json'};
   var nbPath=mvDirPath+'/_index.nb.md', enPath=mvDirPath+'/_index.en.md';
   var startTime = Date.now();
+  // Hent ETag for kildesiden parallelt med filene – brukes til ETag-basert bygge-deteksjon
+  var sourceEtag = null;
+  fetch(state.permalink + '?_pre=' + startTime, { method: 'HEAD', cache: 'no-store' })
+    .then(function(r) { sourceEtag = r.headers.get('etag') || r.headers.get('last-modified'); })
+    .catch(function() {});
   Promise.all([
     fetch('https://api.github.com/repos/SAMT-X/'+mvRepo+'/contents/'+nbPath,{headers:h,cache:'no-store'}).then(function(r){return r.json();}),
     fetch('https://api.github.com/repos/SAMT-X/'+mvRepo+'/contents/'+enPath,{headers:h,cache:'no-store'}).then(function(r){return r.json();})
@@ -3103,8 +3123,8 @@ function _mvDoHit(position) {
     return _mvCommit(token,mvRepo,[{path:nbPath,content:nbNew},{path:enPath,content:enNew}],'Flytt kapittel: ny vekt '+newWeight+(dir?' ('+dir+')':''));
   }).then(function(){
     _mvClear();
-    _mvRestoreMenu();                                       // Gjenopprett normal Endre-meny
-    _mvOpenBuildDialog(startTime, state.permalink, isEn);  // Åpne byggestatus-dialog (audio via startGhPoll)
+    _mvRestoreMenu();
+    _mvOpenBuildDialog(startTime, state.permalink, isEn, sourceEtag);  // ETag-basert → samme som pollQeBuild
   }).catch(function(err){
     _mvMsg((isEn?'⚠ Error: ':'⚠ Feil: ')+err.message,true);
   });
