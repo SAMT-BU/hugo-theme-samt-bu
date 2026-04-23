@@ -3072,12 +3072,42 @@ function _mvOpenBuildDialog(startTime, sourcePerm, isEn, oldEtag) {
   }
 
   if (oldEtag) {
-    // ETag-basert polling – nøyaktig som pollQeBuild med oldEtag
+    // ETag-basert polling – identisk logikk som pollQeBuild (inkl. GH Actions-fallback etter 180s)
     samtuPlayStart();
     var attempts = 0;
+    var _checking = false;
     timer = setInterval(function() {
       if (!overlay.isConnected) { clearInterval(timer); return; }
-      if (++attempts > 180) { clearInterval(timer); samtuPlayFailure(); onBuildError(isEn ? 'Timeout' : 'Tidsavbrudd'); return; }
+      if (++attempts > 180) {
+        if (_checking) return;
+        _checking = true;
+        var _tok = getStoredToken();
+        var _h2 = { 'Accept': 'application/vnd.github+json' };
+        if (_tok) _h2['Authorization'] = 'token ' + _tok;
+        fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5', { headers: _h2 })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            _checking = false;
+            var run = null;
+            if (data.workflow_runs) {
+              for (var i = 0; i < data.workflow_runs.length; i++) {
+                if (new Date(data.workflow_runs[i].created_at).getTime() >= startTime - 30000) { run = data.workflow_runs[i]; break; }
+              }
+            }
+            if (!run) { clearInterval(timer); samtuPlayFailure(); onBuildError(isEn ? 'Timeout' : 'Tidsavbrudd'); return; }
+            if (run.status === 'in_progress' || run.status === 'queued') {
+              attempts = 0; // Bygg pågår – nullstill teller og fortsett ETag-poll
+            } else if (run.status === 'completed' && run.conclusion === 'success') {
+              clearInterval(timer); samtuPlaySuccess(); onBuildDone();
+            } else if (run.status === 'completed' && run.conclusion === 'cancelled') {
+              attempts = 0; statusEl.textContent = isEn ? 'Cancelled – waiting for new build…' : 'Avbrutt – venter på nytt bygg…';
+            } else {
+              clearInterval(timer); samtuPlayFailure(); onBuildError(run.conclusion || 'timeout');
+            }
+          })
+          .catch(function() { _checking = false; clearInterval(timer); samtuPlayFailure(); onBuildError(isEn ? 'Timeout' : 'Tidsavbrudd'); });
+        return;
+      }
       fetch(sourcePerm + '?_cf=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
         .then(function(r) {
           var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
@@ -3150,24 +3180,24 @@ function _mvDoHit(position) {
   var h={'Authorization':'token '+token,'Accept':'application/vnd.github+json'};
   var nbPath=mvDirPath+'/_index.nb.md', enPath=mvDirPath+'/_index.en.md';
   var startTime = Date.now();
-  // Hent ETag for kildesiden parallelt med filene – brukes til ETag-basert bygge-deteksjon
-  var sourceEtag = null;
-  fetch(state.permalink + '?_pre=' + startTime, { method: 'HEAD', cache: 'no-store' })
-    .then(function(r) { sourceEtag = r.headers.get('etag') || r.headers.get('last-modified'); })
-    .catch(function() {});
+  // Hent ETag for kildesiden + innhold parallelt – ETag garantert tilgjengelig ved commit-ferdig
   Promise.all([
+    fetch(state.permalink + '?_pre=' + startTime, { method: 'HEAD', cache: 'no-store' })
+      .then(function(r) { return r.headers.get('etag') || r.headers.get('last-modified') || null; })
+      .catch(function() { return null; }),
     fetch('https://api.github.com/repos/SAMT-X/'+mvRepo+'/contents/'+nbPath,{headers:h,cache:'no-store'}).then(function(r){return r.json();}),
     fetch('https://api.github.com/repos/SAMT-X/'+mvRepo+'/contents/'+enPath,{headers:h,cache:'no-store'}).then(function(r){return r.json();})
   ]).then(function(res){
-    var nbRaw=decodeURIComponent(escape(atob(res[0].content.replace(/\n/g,''))));
-    var enRaw=decodeURIComponent(escape(atob(res[1].content.replace(/\n/g,''))));
+    var sourceEtag=res[0];
+    var nbRaw=decodeURIComponent(escape(atob(res[1].content.replace(/\n/g,''))));
+    var enRaw=decodeURIComponent(escape(atob(res[2].content.replace(/\n/g,''))));
     var nbNew=nbRaw.replace(/^(weight:\s*)\d+/m,'$1'+newWeight);
     var enNew=enRaw.replace(/^(weight:\s*)\d+/m,'$1'+newWeight);
     if(nbNew===nbRaw)throw new Error('weight-felt ikke funnet i nb-fil');
     if(enNew===enRaw)throw new Error('weight-felt ikke funnet i en-fil');
     var dir=mvDirPath.replace(/^content\//,'');
-    return _mvCommit(token,mvRepo,[{path:nbPath,content:nbNew},{path:enPath,content:enNew}],'Flytt kapittel: ny vekt '+newWeight+(dir?' ('+dir+')':''));
-  }).then(function(){
+    return _mvCommit(token,mvRepo,[{path:nbPath,content:nbNew},{path:enPath,content:enNew}],'Flytt kapittel: ny vekt '+newWeight+(dir?' ('+dir+')':'')).then(function(){return sourceEtag;});
+  }).then(function(sourceEtag){
     _mvClear();
     _mvRestoreMenu();  // Fjern dialog + reaktiver Endre-knapp
     _mvOpenBuildDialog(startTime, state.permalink, isEn, sourceEtag);
