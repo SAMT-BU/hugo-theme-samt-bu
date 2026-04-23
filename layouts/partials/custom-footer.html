@@ -2100,170 +2100,165 @@ setTimeout(function() {
       });
   }
 
-  // Move dialog – "Flytt dette kapitlet"
+  // Flytt-modus – sidebar-basert navigering
   (function() {
-    var mvEl = document.getElementById('mv-overlay');
-    if (!mvEl) return;
+    var mvLang = 'nb', mvRepo = '', mvDirPath = '', mvCurrentPerm = '';
+    var mvSiblings = []; // sorted by weight, same-repo others only
+    var mvActive = false;
 
-    var mvBody = document.getElementById('mv-body');
-    var mvStatusEl = document.getElementById('mv-status');
-    var mvLang = 'nb', mvRepo = '', mvDirPath = '', mvCurrentPermalink = '';
-
-    function closeMvDialog() { mvEl.style.display = 'none'; }
-
-    function setMvStatus(text, isError) {
-      mvStatusEl.style.display = 'block';
-      mvStatusEl.style.color = isError ? '#900' : '#444';
-      mvStatusEl.style.background = isError ? '#fff0f0' : '#f0f4f8';
-      mvStatusEl.textContent = text;
+    function setBannerStatus(text) {
+      var el = document.getElementById('mv-banner-status');
+      if (el) el.textContent = text;
     }
 
-    function disableMvBtns() {
-      mvBody.querySelectorAll('button').forEach(function(b) { b.disabled = true; b.style.opacity = '0.5'; });
+    function exitMoveMode() {
+      if (!mvActive) return;
+      mvActive = false;
+      document.body.classList.remove('samtu-move-mode');
+      var banner = document.getElementById('mv-sidebar-banner');
+      if (banner) banner.remove();
+      document.querySelectorAll('.mv-btn-group').forEach(function(el) { el.remove(); });
+      document.removeEventListener('keydown', mvEscHandler);
     }
 
-    function enableMvBtns() {
-      mvBody.querySelectorAll('button').forEach(function(b) { b.disabled = false; b.style.opacity = ''; });
+    function mvEscHandler(e) { if (e.key === 'Escape') exitMoveMode(); }
+
+    function injectButtons() {
+      var isEn = mvLang === 'en';
+      document.querySelectorAll('#sidebar li.dd-item[data-nav-id]').forEach(function(li) {
+        var perm = li.getAttribute('data-nav-id');
+        var isCurrent = perm === mvCurrentPerm;
+
+        var btnGroup = document.createElement('span');
+        btnGroup.className = 'mv-btn-group';
+
+        if (isCurrent) {
+          var marker = document.createElement('span');
+          marker.style.cssText = 'font-size:10px; color:#1a4a8a; font-weight:700; opacity:.8;';
+          marker.textContent = '← ' + (isEn ? 'here' : 'her');
+          btnGroup.appendChild(marker);
+        } else {
+          var matchedSib = null;
+          for (var i = 0; i < mvSiblings.length; i++) {
+            if (mvSiblings[i].relPermalink === perm) { matchedSib = mvSiblings[i]; break; }
+          }
+
+          if (matchedSib) {
+            ['before', 'after'].forEach(function(pos) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.textContent = pos === 'before' ? (isEn ? '↑ Før' : '↑ Før') : (isEn ? '↓ Etter' : '↓ Etter');
+              btn.title = pos === 'before'
+                ? (isEn ? 'Move to just before this chapter' : 'Flytt til rett foran dette kapitlet')
+                : (isEn ? 'Move to just after this chapter' : 'Flytt til rett etter dette kapitlet');
+              (function(sib, p) {
+                btn.onclick = function(e) { e.preventDefault(); e.stopPropagation(); doMoveCommit(sib, p); };
+              })(matchedSib, pos);
+              btnGroup.appendChild(btn);
+            });
+          } else {
+            // Sjekk om det er et eksternt-repo-søsken fra _samtuMoveSiblings (er ikke i mvSiblings fordi forskjellig repo)
+            var allSibs = window._samtuMoveSiblings || [];
+            var isOtherRepoSib = false;
+            for (var j = 0; j < allSibs.length; j++) {
+              if (allSibs[j].relPermalink === perm && allSibs[j].repo !== mvRepo) {
+                isOtherRepoSib = true; break;
+              }
+            }
+            if (isOtherRepoSib) {
+              var extNote = document.createElement('span');
+              extNote.className = 'mv-btn-ext';
+              extNote.title = isEn ? 'External repo – not supported yet' : 'Eksternt repo – støttes ikke ennå';
+              extNote.textContent = 'ekst.';
+              btnGroup.appendChild(extNote);
+            }
+            // Sider på annet nivå: ingen knapper
+          }
+        }
+
+        if (btnGroup.children.length > 0) li.appendChild(btnGroup);
+      });
     }
 
-    document.getElementById('mv-close-x').addEventListener('click', closeMvDialog);
-    document.getElementById('mv-cancel').addEventListener('click', closeMvDialog);
-    mvEl.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMvDialog(); e.stopPropagation(); });
-    mvEl.addEventListener('click', function(e) { if (e.target === mvEl) closeMvDialog(); });
-
-    window.openMoveDialog = function(repo, dirPath, lang, currentPermalink) {
-      mvLang = lang || 'nb';
-      mvRepo = repo;
-      mvDirPath = dirPath;
-      mvCurrentPermalink = currentPermalink;
-
+    window.enterMoveMode = function(repo, dirPath, lang, currentPermalink) {
       if (!getStoredToken()) {
-        doGitHubLogin(function() { window.openMoveDialog(repo, dirPath, lang, currentPermalink); });
+        doGitHubLogin(function() { window.enterMoveMode(repo, dirPath, lang, currentPermalink); });
         return;
       }
 
+      mvLang = lang || 'nb';
+      mvRepo = repo;
+      mvDirPath = dirPath;
+      mvCurrentPerm = currentPermalink;
       var isEn = mvLang === 'en';
-      document.getElementById('mv-heading').textContent = isEn ? 'Move this chapter' : 'Flytt dette kapitlet';
-      mvStatusEl.style.display = 'none';
 
-      var siblings = window._samtuMoveSiblings || [];
-      var currentPerm = window._samtuMoveCurrentPermalink || currentPermalink;
-      var sorted = siblings.slice().sort(function(a, b) { return a.weight - b.weight; });
+      // Bygg sortert liste over same-repo-søsken (ekskl. nåværende side)
+      var allSibs = (window._samtuMoveSiblings || []).slice();
+      allSibs.sort(function(a, b) { return a.weight - b.weight; });
+      mvSiblings = allSibs.filter(function(s) {
+        return s.relPermalink !== mvCurrentPerm && s.repo === mvRepo;
+      });
 
-      mvBody.innerHTML = '';
+      // Lukk Endre-menyen
+      var editMenu = document.getElementById('edit-menu');
+      if (editMenu) editMenu.style.display = 'none';
 
-      if (sorted.length <= 1) {
-        mvBody.innerHTML = '<p style="color:#666; font-size:14px; margin:.5rem 0;">' +
-          (isEn ? 'No other chapters to move relative to.' : 'Ingen andre søskenkapitler å flytte relativt til.') + '</p>';
-      } else {
-        var info = document.createElement('p');
-        info.style.cssText = 'margin:0 0 .8rem; font-size:13px; color:#666; line-height:1.4;';
-        info.textContent = isEn
-          ? 'Click ↑ Before or ↓ After to reposition this chapter among its siblings.'
-          : 'Klikk ↑ Før eller ↓ Etter for å omplassere dette kapitlet blant søsknene.';
-        mvBody.appendChild(info);
+      // Legg inn banner øverst i sidebaren
+      var highlightable = document.querySelector('#sidebar .highlightable');
+      if (!highlightable) return;
+      var banner = document.createElement('div');
+      banner.id = 'mv-sidebar-banner';
+      banner.innerHTML =
+        '<i class="fa fa-arrows" style="font-size:11px; opacity:.75;"></i>' +
+        '<span style="flex:1; font-weight:600;">' + (isEn ? 'Move: click target' : 'Flytt: klikk målsted') + '</span>' +
+        '<span id="mv-banner-status" style="opacity:.75; font-size:11px; margin-right:4px;"></span>' +
+        '<button id="mv-cancel-mode" type="button" style="background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35); color:#fff; border-radius:3px; padding:2px 7px; cursor:pointer; font-size:11px; font-family:inherit;">' +
+        (isEn ? 'Cancel' : 'Avbryt') + '</button>';
+      highlightable.insertBefore(banner, highlightable.firstChild);
+      document.getElementById('mv-cancel-mode').onclick = exitMoveMode;
 
-        var ul = document.createElement('ul');
-        ul.style.cssText = 'list-style:none; margin:0; padding:0;';
+      document.body.classList.add('samtu-move-mode');
+      mvActive = true;
+      document.addEventListener('keydown', mvEscHandler);
 
-        sorted.forEach(function(sib) {
-          var isCurrent = sib.relPermalink === currentPerm;
-          var sameRepo = sib.repo === mvRepo;
-
-          var li = document.createElement('li');
-          li.style.cssText = 'padding:.3rem .3rem; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:.4rem; min-height:2.1rem;';
-          if (isCurrent) { li.style.background = '#eef4ff'; li.style.borderRadius = '3px'; }
-
-          var titleSpan = document.createElement('span');
-          titleSpan.style.cssText = 'flex:1; font-size:14px;' + (isCurrent ? ' font-weight:700; color:#1a4a8a;' : '');
-          titleSpan.textContent = sib.linkTitle || sib.title;
-
-          if (isCurrent) {
-            var badge = document.createElement('span');
-            badge.style.cssText = 'font-size:10px; background:#1a4a8a; color:#fff; border-radius:3px; padding:1px 5px; margin-left:5px; vertical-align:middle;';
-            badge.textContent = isEn ? 'current' : 'nåværende';
-            titleSpan.appendChild(badge);
-          } else if (sib.isExternal) {
-            var extBadge = document.createElement('span');
-            extBadge.style.cssText = 'font-size:10px; color:#888; background:#f0f0f0; border-radius:3px; padding:1px 4px; margin-left:4px; vertical-align:middle;';
-            extBadge.textContent = sib.repo;
-            titleSpan.appendChild(extBadge);
-          }
-
-          li.appendChild(titleSpan);
-
-          if (!isCurrent) {
-            if (sameRepo) {
-              ['before', 'after'].forEach(function(pos) {
-                var btn = document.createElement('button');
-                btn.type = 'button';
-                btn.style.cssText = 'padding:2px 8px; border:1px solid #1a4a8a; border-radius:4px; background:#fff; color:#1a4a8a; cursor:pointer; font-size:11px; white-space:nowrap; flex-shrink:0;';
-                btn.textContent = pos === 'before' ? (isEn ? '↑ Before' : '↑ Før') : (isEn ? '↓ After' : '↓ Etter');
-                btn.title = pos === 'before'
-                  ? (isEn ? 'Move current chapter to just before this' : 'Flytt til rett foran dette kapitlet')
-                  : (isEn ? 'Move current chapter to just after this' : 'Flytt til rett etter dette kapitlet');
-                (function(targetSib, p) {
-                  btn.onclick = function() { doMoveWeight(sorted, currentPerm, targetSib, p); };
-                })(sib, pos);
-                li.appendChild(btn);
-              });
-            } else {
-              var note = document.createElement('span');
-              note.style.cssText = 'font-size:11px; color:#bbb; flex-shrink:0;';
-              note.title = isEn
-                ? 'In ' + sib.repo + ' – cross-repo reordering not yet supported'
-                : 'I ' + sib.repo + ' – støttes ikke på tvers av repos ennå';
-              note.textContent = isEn ? 'ext. repo' : 'ekst. repo';
-              li.appendChild(note);
-            }
-          }
-
-          ul.appendChild(li);
-        });
-        mvBody.appendChild(ul);
-      }
-
-      mvEl.style.display = 'flex';
+      injectButtons();
     };
 
-    function doMoveWeight(sortedAll, currentPerm, targetSib, position) {
+    function doMoveCommit(targetSib, position) {
       var token = getStoredToken();
-      if (!token) { setMvStatus(mvLang === 'en' ? 'Not logged in.' : 'Ikke innlogget.', true); return; }
+      if (!token) { setBannerStatus('Ikke innlogget.'); return; }
       var isEn = mvLang === 'en';
 
-      // Same-repo siblings (excluding current), sorted by weight
-      var others = sortedAll.filter(function(s) { return s.relPermalink !== currentPerm && s.repo === mvRepo; });
       var targetIdx = -1;
-      for (var i = 0; i < others.length; i++) {
-        if (others[i].relPermalink === targetSib.relPermalink) { targetIdx = i; break; }
+      for (var i = 0; i < mvSiblings.length; i++) {
+        if (mvSiblings[i].relPermalink === targetSib.relPermalink) { targetIdx = i; break; }
       }
-      if (targetIdx === -1) { setMvStatus(isEn ? 'Target not found.' : 'Mål ikke funnet.', true); return; }
+      if (targetIdx === -1) return;
 
       var newWeight;
       if (position === 'before') {
         newWeight = targetIdx === 0
-          ? Math.max(1, others[0].weight - 10)
-          : Math.round((others[targetIdx - 1].weight + others[targetIdx].weight) / 2);
+          ? Math.max(1, mvSiblings[0].weight - 10)
+          : Math.round((mvSiblings[targetIdx - 1].weight + mvSiblings[targetIdx].weight) / 2);
       } else {
-        newWeight = targetIdx === others.length - 1
-          ? others[others.length - 1].weight + 10
-          : Math.round((others[targetIdx].weight + others[targetIdx + 1].weight) / 2);
+        newWeight = targetIdx === mvSiblings.length - 1
+          ? mvSiblings[mvSiblings.length - 1].weight + 10
+          : Math.round((mvSiblings[targetIdx].weight + mvSiblings[targetIdx + 1].weight) / 2);
       }
 
-      var collision = false;
-      for (var j = 0; j < others.length; j++) {
-        if (others[j].weight === newWeight) { collision = true; break; }
-      }
-      if (collision) {
-        setMvStatus(isEn
-          ? 'Chapters have weights too close together. Adjust via the Edit dialog first.'
-          : 'Kapitlene har for like vekter. Juster via Rediger-dialogen og prøv igjen.',
-          true);
-        return;
+      // Kollisjonssjekk mot same-repo-søsken
+      for (var j = 0; j < mvSiblings.length; j++) {
+        if (mvSiblings[j].weight === newWeight) {
+          setBannerStatus(isEn ? '⚠ Weights too close – adjust via Edit dialog' : '⚠ For like vekter – juster via Rediger-dialogen');
+          return;
+        }
       }
 
-      disableMvBtns();
-      setMvStatus(isEn ? 'Saving…' : 'Lagrer…');
+      // Deaktiver knapper og vis status
+      document.querySelectorAll('.mv-btn-group button:not(#mv-cancel-mode)').forEach(function(b) {
+        b.disabled = true; b.style.opacity = '0.4';
+      });
+      setBannerStatus(isEn ? 'Saving…' : 'Lagrer…');
 
       var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
       var nbPath = mvDirPath + '/_index.nb.md';
@@ -2278,8 +2273,8 @@ setTimeout(function() {
         var enRaw = decodeURIComponent(escape(atob(results[1].content.replace(/\n/g, ''))));
         var nbNew = nbRaw.replace(/^(weight:\s*)\d+/m, '$1' + newWeight);
         var enNew = enRaw.replace(/^(weight:\s*)\d+/m, '$1' + newWeight);
-        if (nbNew === nbRaw) throw new Error(isEn ? 'weight field not found in NB file' : 'weight-felt ikke funnet i nb-fil');
-        if (enNew === enRaw) throw new Error(isEn ? 'weight field not found in EN file' : 'weight-felt ikke funnet i en-fil');
+        if (nbNew === nbRaw) throw new Error('weight-felt ikke funnet i nb-fil');
+        if (enNew === enRaw) throw new Error('weight-felt ikke funnet i en-fil');
         var dir = mvDirPath.replace(/^content\//, '');
         var msg = 'Flytt kapittel: ny vekt ' + newWeight + (dir ? ' (' + dir + ')' : '');
         return createFilesInOneCommit(token, mvRepo,
@@ -2289,13 +2284,15 @@ setTimeout(function() {
       .then(function() {
         samtuIncrementPending();
         qeLang = mvLang;
-        qePermalink = mvCurrentPermalink;
-        closeMvDialog();
+        qePermalink = mvCurrentPerm;
+        exitMoveMode();
         pollQeBuild(Date.now(), null);
       })
       .catch(function(err) {
-        setMvStatus((isEn ? 'Error: ' : 'Feil: ') + err.message, true);
-        enableMvBtns();
+        setBannerStatus((isEn ? '⚠ ' : '⚠ ') + err.message);
+        document.querySelectorAll('.mv-btn-group button:not(#mv-cancel-mode)').forEach(function(b) {
+          b.disabled = false; b.style.opacity = '';
+        });
       });
     }
   })();

@@ -716,6 +716,74 @@
     color: #4a7fb5;
   }
 
+  /* Flytt-modus: knapper i sidebaren */
+  body.samtu-move-mode #sidebar li.dd-item {
+    position: relative;
+  }
+  body.samtu-move-mode #sidebar li.dd-item > a {
+    padding-right: 72px !important;
+  }
+  .mv-btn-group {
+    display: none;
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    gap: 2px;
+    align-items: center;
+    z-index: 5;
+  }
+  body.samtu-move-mode .mv-btn-group {
+    display: flex;
+  }
+  .mv-btn-group button {
+    padding: 1px 5px;
+    border: 1px solid #1a4a8a;
+    border-radius: 3px;
+    background: #fff;
+    color: #1a4a8a;
+    cursor: pointer;
+    font-size: 10px;
+    line-height: 1.4;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .mv-btn-group button:hover {
+    background: #1a4a8a;
+    color: #fff;
+  }
+  .mv-btn-group .mv-btn-ext {
+    font-size: 10px;
+    color: #bbb;
+    cursor: default;
+    border: none;
+    background: none;
+    padding: 0 2px;
+  }
+  .mv-btn-group .mv-btn-ext:hover {
+    background: none;
+    color: #bbb;
+  }
+  #mv-sidebar-banner {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #1a4a8a;
+    color: #fff;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+  }
+  /* Fremhev nåværende side i flytt-modus */
+  body.samtu-move-mode #sidebar li.dd-item.active > a {
+    background: #dce8f5 !important;
+    border-radius: 3px;
+  }
+
   /* Edit-on-GitHub link at bottom — reduce gap from content */
   .adocs-content {
     padding-bottom: 12px !important;
