@@ -66,6 +66,12 @@
     {{ $rel = strings.TrimPrefix "/" $rel }}
     {{ $githubRepo = "team-architecture" }}
 
+  {{ else if eq $dir "pilotering/pilot-1" }}
+    {{/* team-pilot-1 modul – kun rot-siden; undermapper er lokale i samt-bu-docs */}}
+    {{ $isModulePage = true }}
+    {{ $rel = "" }}
+    {{ $githubRepo = "team-pilot-1" }}
+
   {{ else }}
     {{/* Lokal docs-side */}}
     {{ $rel = strings.TrimPrefix "." $dir }}
@@ -114,6 +120,7 @@
     {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}{{ $githubRepoSibling = "samt-bu-drafts" }}{{ end }}
     {{ if or (eq $dir "loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "loesninger/cms-loesninger/samt-bu-docs/") }}{{ $githubRepoSibling = "solution-samt-bu-docs" }}{{ end }}
     {{ if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}{{ $githubRepoSibling = "team-architecture" }}{{ end }}
+    {{/* team-pilot-1: kun rot-siden er modul, undermapper er lokale → sibling bruker samt-bu-docs (default) */}}
     {{ $parentRel := path.Dir $rel }}
     {{ $parentDirPath := cond (eq $parentRel ".") "content" (printf "content/%s" $parentRel) }}
     {{ $siblingRepo = $githubRepoSibling }}
