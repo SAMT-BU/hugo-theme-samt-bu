@@ -144,20 +144,20 @@ function samtuLogout() {
 }
 
 function checkCollaboratorPermission(repo, callback) {
-  var cacheKey = 'samtu-perm-' + repo;
+  var cacheKey = 'samtu-perm2-' + repo; // v2: bruker permissions.push fra repo-endepunkt
   var ttl = 3600000; // 1 hour
   try {
     var cached = JSON.parse(localStorage.getItem(cacheKey));
     if (cached && (Date.now() - cached.ts) < ttl) { callback(cached.canWrite); return; }
   } catch(e) {}
-  var login = localStorage.getItem('samt-bu-gh-user');
   var token = getStoredToken();
-  if (!login || !token) { callback(false); return; }
-  fetch('https://api.github.com/repos/SAMT-X/' + repo + '/collaborators/' + login, {
+  if (!token) { callback(false); return; }
+  fetch('https://api.github.com/repos/SAMT-X/' + repo, {
     headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' }
   })
-    .then(function(r) {
-      var canWrite = (r.status === 204);
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var canWrite = !!(data.permissions && (data.permissions.push || data.permissions.admin));
       try { localStorage.setItem(cacheKey, JSON.stringify({ canWrite: canWrite, ts: Date.now() })); } catch(e) {}
       callback(canWrite);
     })
