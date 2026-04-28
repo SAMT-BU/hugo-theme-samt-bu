@@ -64,6 +64,13 @@
     {{ $rel = "" }}
     {{ $githubRepo = "team-semantics" }}
 
+  {{ else if or (eq $dir "pilotering/pilot-1") (hasPrefix $dir "pilotering/pilot-1/") }}
+    {{/* team-pilot-1 modul */}}
+    {{ $isModulePage = true }}
+    {{ $rel = strings.TrimPrefix "pilotering/pilot-1" $dir }}
+    {{ $rel = strings.TrimPrefix "/" $rel }}
+    {{ $githubRepo = "team-pilot-1" }}
+
   {{ else }}
     {{/* Lokal docs-side */}}
     {{ $rel = strings.TrimPrefix "." $dir }}
@@ -98,6 +105,9 @@
   {{ else if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}
     {{ $rel = strings.TrimPrefix "arkitektur/overordnet-arkitektur" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
+  {{ else if or (eq $dir "pilotering/pilot-1") (hasPrefix $dir "pilotering/pilot-1/") }}
+    {{ $rel = strings.TrimPrefix "pilotering/pilot-1" $dir }}
+    {{ $rel = strings.TrimPrefix "/" $rel }}
   {{ else }}
     {{ $rel = strings.TrimPrefix "." $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
@@ -107,7 +117,7 @@
     {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}{{ $githubRepoSibling = "samt-bu-drafts" }}{{ end }}
     {{ if or (eq $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/") }}{{ $githubRepoSibling = "solution-samt-bu-docs" }}{{ end }}
     {{ if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}{{ $githubRepoSibling = "team-architecture" }}{{ end }}
-    {{/* team-pilot-1: kun rot-siden er modul, undermapper er lokale → sibling bruker samt-bu-docs (default) */}}
+    {{ if or (eq $dir "pilotering/pilot-1") (hasPrefix $dir "pilotering/pilot-1/") }}{{ $githubRepoSibling = "team-pilot-1" }}{{ end }}
     {{ $parentRel := path.Dir $rel }}
     {{ $parentDirPath := cond (eq $parentRel ".") "content" (printf "content/%s" $parentRel) }}
     {{ $siblingRepo = $githubRepoSibling }}
