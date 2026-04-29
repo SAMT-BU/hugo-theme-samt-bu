@@ -127,6 +127,12 @@
                   {{ $repo = "team-architecture" }}
                 {{ else if or (eq $dir "pilotering/pilot-1") (hasPrefix $dir "pilotering/pilot-1/") }}
                   {{ $repo = "samt-bu-pilot-1" }}
+                {{ else if or (eq $dir "pilotering/pilot-2") (hasPrefix $dir "pilotering/pilot-2/") }}
+                  {{ $repo = "samt-bu-pilot-2" }}
+                {{ else if or (eq $dir "pilotering/pilot-3") (hasPrefix $dir "pilotering/pilot-3/") }}
+                  {{ $repo = "samt-bu-pilot-3" }}
+                {{ else if or (eq $dir "pilotering/pilot-4") (hasPrefix $dir "pilotering/pilot-4/") }}
+                  {{ $repo = "samt-bu-pilot-4" }}
                 {{ else if or (eq $dir "arkitektur/informasjonsarkitektur") (hasPrefix $dir "arkitektur/informasjonsarkitektur/") }}
                   {{ $repo = "team-semantics" }}
                 {{ end }}
