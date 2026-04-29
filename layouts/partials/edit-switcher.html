@@ -36,6 +36,7 @@
   {{/* path.Dir normaliserer Windows-backslash til forward slash */}}
   {{ $dir := path.Dir .File.Path }}
   {{ $rel := "" }}
+  {{ $isLocalUnderOverordnet := or (eq $dir "arkitektur/overordnet-arkitektur/maalbildet") (hasPrefix $dir "arkitektur/overordnet-arkitektur/maalbildet/") (eq $dir "arkitektur/overordnet-arkitektur/veikart") (hasPrefix $dir "arkitektur/overordnet-arkitektur/veikart/") }}
 
   {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
     {{/* samt-bu-drafts modul */}}
@@ -51,8 +52,8 @@
     {{ $rel = strings.TrimPrefix "/" $rel }}
     {{ $githubRepo = "solution-samt-bu-docs" }}
 
-  {{ else if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}
-    {{/* team-architecture modul, montert under arkitektur/ */}}
+  {{ else if and (or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/")) (not $isLocalUnderOverordnet) }}
+    {{/* team-architecture modul – maalbildet og veikart er lokale i samt-bu-docs */}}
     {{ $isModulePage = true }}
     {{ $rel = strings.TrimPrefix "arkitektur/overordnet-arkitektur" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
@@ -117,13 +118,14 @@
 {{ if and .File (ne $entrySlug "") }}
   {{ $rel := "" }}
   {{ $dir := path.Dir .File.Path }}
+  {{ $isLocalUnderOverordnet := or (eq $dir "arkitektur/overordnet-arkitektur/maalbildet") (hasPrefix $dir "arkitektur/overordnet-arkitektur/maalbildet/") (eq $dir "arkitektur/overordnet-arkitektur/veikart") (hasPrefix $dir "arkitektur/overordnet-arkitektur/veikart/") }}
   {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}
     {{ $rel = strings.TrimPrefix "utkast" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
   {{ else if or (eq $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/") }}
     {{ $rel = strings.TrimPrefix "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
-  {{ else if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}
+  {{ else if and (or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/")) (not $isLocalUnderOverordnet) }}
     {{ $rel = strings.TrimPrefix "arkitektur/overordnet-arkitektur" $dir }}
     {{ $rel = strings.TrimPrefix "/" $rel }}
   {{ else if or (eq $dir "pilotering/pilot-1") (hasPrefix $dir "pilotering/pilot-1/") }}
@@ -146,7 +148,7 @@
     {{ $githubRepoSibling := "samt-bu-docs" }}
     {{ if or (eq $dir "utkast") (hasPrefix $dir "utkast/") }}{{ $githubRepoSibling = "samt-bu-drafts" }}{{ end }}
     {{ if or (eq $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $dir "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/") }}{{ $githubRepoSibling = "solution-samt-bu-docs" }}{{ end }}
-    {{ if or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/") }}{{ $githubRepoSibling = "team-architecture" }}{{ end }}
+    {{ if and (or (eq $dir "arkitektur/overordnet-arkitektur") (hasPrefix $dir "arkitektur/overordnet-arkitektur/")) (not $isLocalUnderOverordnet) }}{{ $githubRepoSibling = "team-architecture" }}{{ end }}
     {{ if or (eq $dir "pilotering/pilot-1") (hasPrefix $dir "pilotering/pilot-1/") }}{{ $githubRepoSibling = "samt-bu-pilot-1" }}{{ end }}
     {{ if or (eq $dir "pilotering/pilot-2") (hasPrefix $dir "pilotering/pilot-2/") }}{{ $githubRepoSibling = "samt-bu-pilot-2" }}{{ end }}
     {{ if or (eq $dir "pilotering/pilot-3") (hasPrefix $dir "pilotering/pilot-3/") }}{{ $githubRepoSibling = "samt-bu-pilot-3" }}{{ end }}
@@ -571,13 +573,14 @@
     {{- $r2 := "samt-bu-docs" -}}
     {{- $x2 := false -}}
     {{- $rl2 := "" -}}
+    {{- $isLocalD2 := or (eq $d2 "arkitektur/overordnet-arkitektur/maalbildet") (hasPrefix $d2 "arkitektur/overordnet-arkitektur/maalbildet/") (eq $d2 "arkitektur/overordnet-arkitektur/veikart") (hasPrefix $d2 "arkitektur/overordnet-arkitektur/veikart/") -}}
     {{- if or (eq $d2 "utkast") (hasPrefix $d2 "utkast/") -}}
       {{- $x2 = true -}}{{- $r2 = "samt-bu-drafts" -}}
       {{- $rl2 = strings.TrimPrefix "/" (strings.TrimPrefix "utkast" $d2) -}}
     {{- else if or (eq $d2 "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs") (hasPrefix $d2 "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs/") -}}
       {{- $x2 = true -}}{{- $r2 = "solution-samt-bu-docs" -}}
       {{- $rl2 = strings.TrimPrefix "/" (strings.TrimPrefix "prosjektleveranser/loesninger/cms-loesninger/samt-bu-docs" $d2) -}}
-    {{- else if or (eq $d2 "arkitektur/overordnet-arkitektur") (hasPrefix $d2 "arkitektur/overordnet-arkitektur/") -}}
+    {{- else if and (or (eq $d2 "arkitektur/overordnet-arkitektur") (hasPrefix $d2 "arkitektur/overordnet-arkitektur/")) (not $isLocalD2) -}}
       {{- $x2 = true -}}{{- $r2 = "team-architecture" -}}
       {{- $rl2 = strings.TrimPrefix "/" (strings.TrimPrefix "arkitektur/overordnet-arkitektur" $d2) -}}
     {{- else if eq $d2 "arkitektur/informasjonsarkitektur" -}}
