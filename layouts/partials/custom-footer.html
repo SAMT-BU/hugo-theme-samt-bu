@@ -1635,7 +1635,7 @@ setTimeout(function() {
   if (!overlay) return;
 
   var qeRepo = '', qeFilePath = '', qeLang = 'nb', qePageTitle = '', qePermalink = '';
-  var qeFrontmatter = '', qeEditor = null, qePollTimer = null;
+  var qeFrontmatter = '', qeEditor = null, qePollTimer = null, qeOriginalTitle = '';
   var qeImages = {}, qeImageMap = {};
 
   function parseFrontmatter(content) {
@@ -1820,6 +1820,12 @@ setTimeout(function() {
           // Fyll inn metadata-felter
           document.getElementById('qe-field-title').value    = parseFmField(qeFrontmatter, 'title');
           document.getElementById('qe-field-linktitle').value = parseFmField(qeFrontmatter, 'linkTitle');
+          qeOriginalTitle = parseFmField(qeFrontmatter, 'title');
+          document.getElementById('qe-field-title').oninput = function() {
+            var lt = document.getElementById('qe-field-linktitle');
+            if (lt.value === qeOriginalTitle) lt.value = this.value;
+            qeOriginalTitle = this.value;
+          };
           document.getElementById('qe-field-weight').value   = parseFmField(qeFrontmatter, 'weight');
           var currentStatus = parseFmField(qeFrontmatter, 'status');
           var statusOpts = qeLang === 'en'
