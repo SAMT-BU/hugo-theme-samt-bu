@@ -470,6 +470,10 @@
         <span style="font-size:11px; font-weight:600; color:transparent; user-select:none; pointer-events:none;">–</span>
         <label style="display:flex; align-items:center; gap:.4rem; font-size:13px; color:#555; height:2rem; cursor:pointer;"><input id="qe-field-hidetoc" type="checkbox" checked style="margin:0;"> {{ cond (eq $lang "en") "Table of contents" "Innholdsfortegnelse" }}</label>
       </div>
+      <div style="display:flex; flex-direction:column; gap:.2rem;">
+        <span style="font-size:11px; font-weight:600; color:transparent; user-select:none; pointer-events:none;">–</span>
+        <label style="display:flex; align-items:center; gap:.4rem; font-size:13px; color:#c00; height:2rem; cursor:pointer;"><input id="qe-field-draft" type="checkbox" style="margin:0;"> {{ cond (eq $lang "en") "Draft" "Utkast" }}</label>
+      </div>
     </div>
   </div>
   <div id="qe-editor-area" style="flex:1; display:flex; flex-direction:column; max-width:960px; width:100%; margin:0 auto; min-height:0;">
