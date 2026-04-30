@@ -715,6 +715,7 @@ setTimeout(function() {
     var username = switchInput ? switchInput.value.trim() : '';
     if (!username) return;
     menu.style.display = 'none';
+    menu.style.minWidth = '';
     if (switchFormRow) switchFormRow.style.display = 'none';
     if (switchRow)     switchRow.style.display     = 'block';
     samtuLogout();
@@ -724,13 +725,19 @@ setTimeout(function() {
   if (switchBtn) {
     switchBtn.addEventListener('click', function(e) {
       e.preventDefault();
+      e.stopPropagation();
       if (switchFormRow) switchFormRow.style.display = 'block';
       if (switchRow)     switchRow.style.display     = 'none';
+      menu.style.minWidth = '230px';
       if (switchInput)   { switchInput.value = ''; switchInput.focus(); }
     });
   }
+  // Stopp klikk inni skjema fra å boble til document-handleren som lukker menyen
+  if (switchFormRow) {
+    switchFormRow.addEventListener('click', function(e) { e.stopPropagation(); });
+  }
   if (switchConfirm) {
-    switchConfirm.addEventListener('click', function(e) { e.preventDefault(); doSwitchUser(); });
+    switchConfirm.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); doSwitchUser(); });
   }
   if (switchInput) {
     switchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doSwitchUser(); } });
