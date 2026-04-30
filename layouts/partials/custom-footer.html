@@ -53,6 +53,11 @@ function doGitHubLogin(onSuccess, loginHint) {
       e.source.postMessage('authorizing:github', e.origin);
       return;
     }
+    if (data === 'authorization:github:cancelled') {
+      window.removeEventListener('message', handleMessage);
+      if (popup && !popup.closed) popup.close();
+      return;
+    }
     if (typeof data === 'string' && data.indexOf('authorization:github:success:') === 0) {
       window.removeEventListener('message', handleMessage);
       try {
