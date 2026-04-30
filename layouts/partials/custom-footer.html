@@ -706,15 +706,34 @@ setTimeout(function() {
     });
   });
 
+  var switchFormRow  = document.getElementById('samtu-switch-form-row');
+  var switchRow      = document.getElementById('samtu-switch-row');
+  var switchInput    = document.getElementById('samtu-switch-input');
+  var switchConfirm  = document.getElementById('samtu-switch-confirm');
+
+  function doSwitchUser() {
+    var username = switchInput ? switchInput.value.trim() : '';
+    if (!username) return;
+    menu.style.display = 'none';
+    if (switchFormRow) switchFormRow.style.display = 'none';
+    if (switchRow)     switchRow.style.display     = 'block';
+    samtuLogout();
+    doGitHubLogin(function() { fetchCurrentUser(function() {}); }, username);
+  }
+
   if (switchBtn) {
     switchBtn.addEventListener('click', function(e) {
       e.preventDefault();
-      menu.style.display = 'none';
-      var username = window.prompt('GitHub-brukernavn å logge inn som:', '');
-      if (!username || !username.trim()) return;
-      samtuLogout();
-      doGitHubLogin(function() { fetchCurrentUser(function() {}); }, username.trim());
+      if (switchFormRow) switchFormRow.style.display = 'block';
+      if (switchRow)     switchRow.style.display     = 'none';
+      if (switchInput)   { switchInput.value = ''; switchInput.focus(); }
     });
+  }
+  if (switchConfirm) {
+    switchConfirm.addEventListener('click', function(e) { e.preventDefault(); doSwitchUser(); });
+  }
+  if (switchInput) {
+    switchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doSwitchUser(); } });
   }
 
   if (logoutBtn) {

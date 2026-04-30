@@ -167,7 +167,13 @@
   <img id="samtu-user-avatar" src="" alt="" style="display:none; width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,.55); cursor:pointer; vertical-align:middle;" title="">
   <ul id="samtu-avatar-menu" style="display:none; position:absolute; right:0; top:34px; background:#fff; border:1px solid #ddd; border-radius:5px; box-shadow:0 4px 16px rgba(0,0,0,.2); min-width:160px; padding:4px 0; z-index:99999; list-style:none; margin:0;">
     <li id="samtu-avatar-username" style="padding:8px 14px; font-size:13px; color:#555; border-bottom:1px solid #eee; white-space:nowrap;"></li>
-    <li><a href="#" id="samtu-switch-btn" style="display:block; padding:8px 14px; font-size:13px; color:#0066cc; text-decoration:none;">{{ cond (eq $lang "en") "Switch user" "Bytt bruker" }}</a></li>
+    <li id="samtu-switch-row"><a href="#" id="samtu-switch-btn" style="display:block; padding:8px 14px; font-size:13px; color:#0066cc; text-decoration:none;">{{ cond (eq $lang "en") "Switch user" "Bytt bruker" }}</a></li>
+    <li id="samtu-switch-form-row" style="display:none; padding:4px 10px 8px; border-bottom:1px solid #eee;">
+      <div style="display:flex; gap:4px; align-items:center; margin-top:2px;">
+        <input id="samtu-switch-input" type="text" placeholder="{{ cond (eq $lang "en") "GitHub username" "GitHub-brukernavn" }}" autocomplete="off" style="flex:1; font-size:12px; padding:4px 6px; border:1px solid #ccc; border-radius:3px; outline:none; min-width:0; font-family:inherit;">
+        <button id="samtu-switch-confirm" style="font-size:13px; padding:3px 9px; border:1px solid #0066cc; border-radius:3px; background:#0066cc; color:#fff; cursor:pointer; font-family:inherit;">→</button>
+      </div>
+    </li>
     <li><a href="#" id="samtu-logout-btn" style="display:block; padding:8px 14px; font-size:13px; color:#b00020; text-decoration:none;">{{ cond (eq $lang "en") "Log out" "Logg ut" }}</a></li>
   </ul>
 </div>
