@@ -30,11 +30,14 @@ function storeToken(token) {
 
 function doGitHubLogin(onSuccess) {
   var workerBase = 'https://auth.samt-bu.no';
+  var force = localStorage.getItem('samtu-force-login') === '1';
+  try { if (force) localStorage.removeItem('samtu-force-login'); } catch(e) {}
+  var authUrl = workerBase + '/auth?provider=github&site_id=samt-bu-docs' + (force ? '&force=true' : '');
   var w = 600, h = 700;
   var left = Math.round((screen.width - w) / 2);
   var top  = Math.round((screen.height - h) / 2);
   var popup = window.open(
-    workerBase + '/auth?provider=github&site_id=samt-bu-docs',
+    authUrl,
     'samt-gh-oauth',
     'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top
   );
@@ -136,6 +139,7 @@ function samtuLogout() {
     localStorage.removeItem('samt-bu-gh-user');
     localStorage.removeItem('samt-bu-gh-name');
     localStorage.removeItem('samt-bu-gh-avatar');
+    localStorage.setItem('samtu-force-login', '1');
     ['samt-bu-docs','team-architecture','samt-bu-drafts','solution-samt-bu-docs'].forEach(function(r) {
       localStorage.removeItem('samtu-perm-' + r);
     });
