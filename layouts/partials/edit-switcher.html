@@ -167,6 +167,7 @@
   <img id="samtu-user-avatar" src="" alt="" style="display:none; width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,.55); cursor:pointer; vertical-align:middle;" title="">
   <ul id="samtu-avatar-menu" style="display:none; position:absolute; right:0; top:34px; background:#fff; border:1px solid #ddd; border-radius:5px; box-shadow:0 4px 16px rgba(0,0,0,.2); min-width:160px; padding:4px 0; z-index:99999; list-style:none; margin:0;">
     <li id="samtu-avatar-username" style="padding:8px 14px; font-size:13px; color:#555; border-bottom:1px solid #eee; white-space:nowrap;"></li>
+    <li><a href="#" id="samtu-switch-btn" style="display:block; padding:8px 14px; font-size:13px; color:#0066cc; text-decoration:none;">{{ cond (eq $lang "en") "Switch user" "Bytt bruker" }}</a></li>
     <li><a href="#" id="samtu-logout-btn" style="display:block; padding:8px 14px; font-size:13px; color:#b00020; text-decoration:none;">{{ cond (eq $lang "en") "Log out" "Logg ut" }}</a></li>
   </ul>
 </div>

@@ -28,11 +28,12 @@ function storeToken(token) {
   } catch(e) {}
 }
 
-function doGitHubLogin(onSuccess) {
+function doGitHubLogin(onSuccess, loginHint) {
   var workerBase = 'https://auth.samt-bu.no';
-  var force = localStorage.getItem('samtu-force-login') === '1';
-  try { if (force) localStorage.removeItem('samtu-force-login'); } catch(e) {}
-  var authUrl = workerBase + '/auth?provider=github&site_id=samt-bu-docs' + (force ? '&force=true' : '');
+  var force = !loginHint && localStorage.getItem('samtu-force-login') === '1';
+  try { if (force || loginHint) localStorage.removeItem('samtu-force-login'); } catch(e) {}
+  var authUrl = workerBase + '/auth?provider=github&site_id=samt-bu-docs' +
+    (loginHint ? '&login=' + encodeURIComponent(loginHint) : (force ? '&force=true' : ''));
   var w = 600, h = 700;
   var left = Math.round((screen.width - w) / 2);
   var top  = Math.round((screen.height - h) / 2);
@@ -679,6 +680,7 @@ setTimeout(function() {
   var img   = document.getElementById('samtu-user-avatar');
   var menu  = document.getElementById('samtu-avatar-menu');
   var logoutBtn = document.getElementById('samtu-logout-btn');
+  var switchBtn = document.getElementById('samtu-switch-btn');
   var loginBtn2 = document.getElementById('samtu-login-btn');
   if (!wrap) return;
 
@@ -703,6 +705,17 @@ setTimeout(function() {
       if (el) el.classList.remove('open');
     });
   });
+
+  if (switchBtn) {
+    switchBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      menu.style.display = 'none';
+      var username = window.prompt('GitHub-brukernavn å logge inn som:', '');
+      if (!username || !username.trim()) return;
+      samtuLogout();
+      doGitHubLogin(function() { fetchCurrentUser(function() {}); }, username.trim());
+    });
+  }
 
   if (logoutBtn) {
     logoutBtn.addEventListener('click', function(e) {
