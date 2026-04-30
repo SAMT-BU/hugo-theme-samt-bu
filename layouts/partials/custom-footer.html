@@ -711,41 +711,14 @@ setTimeout(function() {
     });
   });
 
-  var switchFormRow  = document.getElementById('samtu-switch-form-row');
-  var switchRow      = document.getElementById('samtu-switch-row');
-  var switchInput    = document.getElementById('samtu-switch-input');
-  var switchConfirm  = document.getElementById('samtu-switch-confirm');
-
-  function doSwitchUser() {
-    var username = switchInput ? switchInput.value.trim() : '';
-    if (!username) return;
-    menu.style.display = 'none';
-    menu.style.minWidth = '';
-    if (switchFormRow) switchFormRow.style.display = 'none';
-    if (switchRow)     switchRow.style.display     = 'block';
-    samtuLogout();
-    doGitHubLogin(function() { fetchCurrentUser(function() {}); }, username);
-  }
-
   if (switchBtn) {
     switchBtn.addEventListener('click', function(e) {
       e.preventDefault();
-      e.stopPropagation();
-      if (switchFormRow) switchFormRow.style.display = 'block';
-      if (switchRow)     switchRow.style.display     = 'none';
-      menu.style.minWidth = '230px';
-      if (switchInput)   { switchInput.value = ''; switchInput.focus(); }
+      menu.style.display = 'none';
+      samtuLogout();
+      try { localStorage.removeItem('samtu-force-login'); } catch(ex) {}
+      doGitHubLogin(function() { fetchCurrentUser(function() {}); });
     });
-  }
-  // Stopp klikk inni skjema fra å boble til document-handleren som lukker menyen
-  if (switchFormRow) {
-    switchFormRow.addEventListener('click', function(e) { e.stopPropagation(); });
-  }
-  if (switchConfirm) {
-    switchConfirm.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); doSwitchUser(); });
-  }
-  if (switchInput) {
-    switchInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); doSwitchUser(); } });
   }
 
   if (logoutBtn) {
