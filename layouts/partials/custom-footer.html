@@ -227,6 +227,24 @@ function ensureForkReady(token, repo) {
     });
 }
 
+// Worker-proxy for eksterne bidragsytere: branch + commit + PR i SAMT-X (ingen fork)
+function suggestViaWorker(repo, branch, treeItems, deletePrefix, commitMessage, prTitle, prBody) {
+  var payload = { repo: repo, branch: branch, commitMessage: commitMessage, prTitle: prTitle };
+  if (prBody) payload.prBody = prBody;
+  if (treeItems) payload.treeItems = treeItems;
+  if (deletePrefix) payload.deletePrefix = deletePrefix;
+  return fetch('https://auth.samt-bu.no/suggest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(j) { throw new Error(j.error || r.statusText); });
+    return r.json();
+  }).then(function(data) {
+    return { html_url: data.pr_url, number: data.pr_number };
+  });
+}
+
 // Persistent bygg-sporing på tvers av sidenavigering (localStorage)
 var SAMTU_PENDING_KEY = 'samtu-build-pending';
 function samtuGetPending() {
@@ -1081,10 +1099,22 @@ setTimeout(function() {
       var branchName = canWrite ? null : makePrBranch();
       var npLogin = localStorage.getItem('samt-bu-gh-user') || 'unknown';
       var commitPromise = canWrite
-        ? tryNpCommit(2, branchName)
-        : ensureForkReady(token, npRepo).then(function() { return tryNpCommit(2, branchName, npLogin); });
+        ? tryNpCommit(2)
+        : Promise.all([
+            weightInt ? fetchSiblingWeightUpdates(token, npRepo, npParentPath, weightInt, slug) : Promise.resolve([]),
+            Promise.resolve([])
+          ]).then(function(results) {
+            var items = newFiles.concat(results[0]).map(function(f) {
+              return {path: f.path, mode: '100644', type: 'blob', content: f.content};
+            });
+            var prTitle = (npLang === 'en' ? 'Suggest new page: ' : 'Foreslår ny side: ') + titleNb;
+            var prBody = npLang === 'en'
+              ? 'New page suggested by @' + npLogin + ' via SAMT-BU Docs editor.'
+              : 'Ny side foreslått av @' + npLogin + ' via SAMT-BU Docs redigeringsgrensesnitt.';
+            return suggestViaWorker(npRepo, branchName, items, null, commitMsg, prTitle, prBody);
+          });
       commitPromise
-        .then(function() {
+        .then(function(result) {
           if (canWrite) {
             npTitle = titleNb;
             if (npMode === 'child') {
@@ -1097,25 +1127,17 @@ setTimeout(function() {
             samtuIncrementPending();
             npPollBuild(startTime);
           } else {
-            var prTitle = (npLang === 'en' ? 'Suggest new page: ' : 'Foreslår ny side: ') + titleNb;
-            var login = localStorage.getItem('samt-bu-gh-user') || 'unknown';
-            var prBody = npLang === 'en'
-              ? 'New page suggested by @' + login + ' via SAMT-BU Docs editor.'
-              : 'Ny side foreslått av @' + login + ' via SAMT-BU Docs redigeringsgrensesnitt.';
-            return createPr(token, npRepo, npLogin + ':' + branchName, prTitle, prBody)
-              .then(function(pr) {
-                setNpStatus(npLang === 'en' ? '\u2713 Pull request sent' : '\u2713 Pull request sendt');
-                submitBtn.textContent = npLang === 'en' ? 'Sent' : 'Sendt';
-                submitBtn.style.background = '#2d7a3a';
-                submitBtn.style.cursor = 'default';
-                var cancelBtn = document.getElementById('np-cancel');
-                if (cancelBtn) cancelBtn.textContent = npLang === 'en' ? 'Close' : 'Lukk';
-                if (pr && pr.html_url) {
-                  var statusEl = document.getElementById('np-status-text');
-                  if (statusEl) statusEl.innerHTML = (npLang === 'en' ? '\u2713 PR: ' : '\u2713 PR: ') +
-                    '<a href="' + pr.html_url + '" target="_blank" style="color:#fff; text-decoration:underline;">#' + pr.number + '</a>';
-                }
-              });
+            setNpStatus(npLang === 'en' ? '\u2713 Pull request sent' : '\u2713 Pull request sendt');
+            submitBtn.textContent = npLang === 'en' ? 'Sent' : 'Sendt';
+            submitBtn.style.background = '#2d7a3a';
+            submitBtn.style.cursor = 'default';
+            var cancelBtn = document.getElementById('np-cancel');
+            if (cancelBtn) cancelBtn.textContent = npLang === 'en' ? 'Close' : 'Lukk';
+            if (result && result.html_url) {
+              var statusEl = document.getElementById('np-status-text');
+              if (statusEl) statusEl.innerHTML = (npLang === 'en' ? '\u2713 PR: ' : '\u2713 PR: ') +
+                '<a href="' + result.html_url + '" target="_blank" style="color:#fff; text-decoration:underline;">#' + result.number + '</a>';
+            }
           }
         })
         .catch(function(err) {
@@ -1444,36 +1466,37 @@ setTimeout(function() {
           throw err;
         });
       }
+      var delSuggestItems = delChildCount > 0 ? null : [
+        {path: nbPath, mode: '100644', type: 'blob', sha: null},
+        {path: enPath, mode: '100644', type: 'blob', sha: null}
+      ];
+      var delSuggestPrefix = delChildCount > 0 ? delDirPath : null;
+      var delPrTitle = (delLang === 'en' ? 'Suggest deletion: ' : 'Foreslår sletting: ') + delTitle;
+      var delPrBody = delLang === 'en'
+        ? 'Deletion suggested by @' + delLogin + ' via SAMT-BU Docs.'
+        : 'Sletting foreslått av @' + delLogin + ' via SAMT-BU Docs.';
       var delPromise = canWrite
         ? tryDelCommit(2)
-        : ensureForkReady(token, delRepo).then(function() { return tryDelCommit(2, delLogin); });
+        : suggestViaWorker(delRepo, branchName, delSuggestItems, delSuggestPrefix, commitMsg, delPrTitle, delPrBody);
       delPromise
-        .then(function() {
+        .then(function(result) {
           if (canWrite) {
             showBuildPanel();
             samtuIncrementPending();
             pollBuild(startTime);
           } else {
-            var prTitle = (delLang === 'en' ? 'Suggest deletion: ' : 'Foreslår sletting: ') + delTitle;
-            var prBody = delLang === 'en'
-              ? 'Deletion suggested by @' + delLogin + ' via SAMT-BU Docs.'
-              : 'Sletting foreslått av @' + delLogin + ' via SAMT-BU Docs.';
-            return createPr(token, delRepo, delLogin + ':' + branchName, prTitle, prBody)
-              .then(function(pr) {
-                showBuildPanel();
-                document.getElementById('del-heading').textContent =
-                  delLang === 'en' ? 'Suggestion sent!' : 'Forslag sendt!';
-                var buildText = document.getElementById('del-build-status-text');
-                if (buildText) buildText.innerHTML = (delLang === 'en' ? 'Pull request created: ' : 'Pull request opprettet: ') +
-                  (pr && pr.html_url ? '<a href="' + pr.html_url + '" target="_blank">#' + pr.number + '</a>' : '');
-                var doneBtn = document.getElementById('del-panel-done');
-                if (doneBtn) { doneBtn.style.display = 'inline-block'; doneBtn.onclick = closeDialog; }
-                var closeBtn = document.getElementById('del-panel-close');
-                if (closeBtn) closeBtn.style.display = 'none';
-              });
+            showBuildPanel();
+            document.getElementById('del-heading').textContent =
+              delLang === 'en' ? 'Suggestion sent!' : 'Forslag sendt!';
+            var buildText = document.getElementById('del-build-status-text');
+            if (buildText) buildText.innerHTML = (delLang === 'en' ? 'Pull request created: ' : 'Pull request opprettet: ') +
+              (result && result.html_url ? '<a href="' + result.html_url + '" target="_blank">#' + result.number + '</a>' : '');
+            var doneBtn = document.getElementById('del-panel-done');
+            if (doneBtn) { doneBtn.style.display = 'inline-block'; doneBtn.onclick = closeDialog; }
+            var closeBtn = document.getElementById('del-panel-close');
+            if (closeBtn) closeBtn.style.display = 'none';
           }
-        })
-        .catch(function(err) {
+        })        .catch(function(err) {
           document.getElementById('del-confirm-section-2').style.display = 'none';
           document.getElementById('del-confirm-section').style.display = 'block';
           var errEl = document.getElementById('del-error');
@@ -1966,7 +1989,10 @@ setTimeout(function() {
     }
 
     checkCollaboratorPermission(qeRepo, function(canWrite) {
-      uploadQeBlobs(token, qeRepo, imgDir, qeImages)
+      var uploadPromise = canWrite
+        ? uploadQeBlobs(token, qeRepo, imgDir, qeImages)
+        : Promise.resolve([]);
+      uploadPromise
         .then(function(blobItems) {
           if (canWrite) {
             return tryCommit(blobItems, Date.now() + 120000).then(onSaveSuccess);
@@ -1978,9 +2004,8 @@ setTimeout(function() {
             var prBody = qeLang === 'en'
               ? 'Suggested by @' + qeLogin + ' via SAMT-BU Docs editor.'
               : 'Foreslått av @' + qeLogin + ' via SAMT-BU Docs redigeringsgrensesnitt.';
-            return ensureForkReady(token, qeRepo)
-              .then(function() { return createQeCommit(token, qeRepo, qeFilePath, newContent, blobItems, commitMsg, branchName, qeLogin); })
-              .then(function() { return createPr(token, qeRepo, qeLogin + ':' + branchName, prTitle, prBody); })
+            var items = [{path: qeFilePath, mode: '100644', type: 'blob', content: newContent}];
+            return suggestViaWorker(qeRepo, branchName, items, null, commitMsg, prTitle, prBody)
               .then(onPrSuccess);
           }
         })
