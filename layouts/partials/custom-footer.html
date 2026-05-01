@@ -229,7 +229,9 @@ function ensureForkReady(token, repo) {
 
 // Worker-proxy for eksterne bidragsytere: branch + commit + PR i SAMT-X (ingen fork)
 function suggestViaWorker(repo, branch, treeItems, deletePrefix, commitMessage, prTitle, prBody) {
-  var payload = { repo: repo, branch: branch, commitMessage: commitMessage, prTitle: prTitle };
+  var token = getStoredToken();
+  if (!token) return Promise.reject(new Error('Ikke innlogget'));
+  var payload = { repo: repo, branch: branch, commitMessage: commitMessage, prTitle: prTitle, userToken: token };
   if (prBody) payload.prBody = prBody;
   if (treeItems) payload.treeItems = treeItems;
   if (deletePrefix) payload.deletePrefix = deletePrefix;
