@@ -154,7 +154,7 @@ function samtuLogout() {
 }
 
 function checkCollaboratorPermission(repo, callback) {
-  var cacheKey = 'samtu-perm2-' + repo; // v2: bruker permissions.push fra repo-endepunkt
+  var cacheKey = 'samtu-perm2-' + repo + '-' + (localStorage.getItem('samt-bu-gh-user') || ''); // v3: bruker-spesifikk nøkkel
   var ttl = 3600000; // 1 hour
   try {
     var cached = JSON.parse(localStorage.getItem(cacheKey));
