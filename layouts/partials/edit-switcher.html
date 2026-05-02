@@ -215,19 +215,19 @@
       </a>
     </li>
     {{ end }}
-    {{ if .File }}
-    <li style="border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;">
-      <a href="#" onclick="openCommentDialog('{{ $githubRepo }}', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}', {{ .Params.id | jsonify }}); return false;">
-        <i class="fa fa-comment-o"></i>
-        <span>{{ cond (eq $lang "en") "Give feedback" "Gi kommentar" }}</span>
-      </a>
-    </li>
-    {{ end }}
     {{ if and .File (ne $entrySlug "") (ne $dirPath "content") }}
     <li style="border-top:1px solid #f5e0e0; margin-top:3px; padding-top:3px;">
       <a href="#" data-del-title="{{ .Title }}" onclick="openDeleteDialog('{{ $githubRepo }}', '{{ $dirPath }}', '{{ $lang }}', this.dataset.delTitle, '{{ $afterDeleteUrl }}', {{ len .Pages }}); return false;" style="color:#b00020;">
         <i class="fa fa-trash-o"></i>
         <span>{{ cond (eq $lang "en") "Delete this page" "Slett denne siden" }}</span>
+      </a>
+    </li>
+    {{ end }}
+    {{ if .File }}
+    <li style="border-top:1px solid #e8edf3; margin-top:3px; padding-top:3px;">
+      <a href="#" onclick="openCommentDialog('{{ $githubRepo }}', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}', {{ .Params.id | jsonify }}); return false;">
+        <i class="fa fa-comment-o"></i>
+        <span>{{ cond (eq $lang "en") "Give feedback" "Gi kommentar" }}</span>
       </a>
     </li>
     {{ end }}
