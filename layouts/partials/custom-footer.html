@@ -133,10 +133,29 @@ function updateAvatarDisplay() {
     if (img)      { img.src = avatar; img.title = '@' + login; img.style.display = 'inline-block'; }
     if (label)    { label.textContent = '@' + login; }
     if (loginBtn) { loginBtn.style.display = 'none'; }
+    samtuUpdateMenuLabels();
   } else {
     if (img)      { img.style.display = 'none'; }
     if (loginBtn) { loginBtn.style.display = 'inline-block'; }
+    samtuResetMenuLabels();
   }
+}
+function samtuUpdateMenuLabels() {
+  if (!window._samtuThisPage) return;
+  var lang = window._samtuThisPage.lang;
+  checkCollaboratorPermission(window._samtuThisPage.repo, function(canWrite) {
+    var editLabel = document.getElementById('samtu-edit-page-label');
+    var moveLabel = document.getElementById('samtu-move-label');
+    if (editLabel) editLabel.textContent = canWrite ? (lang === 'en' ? 'Edit this page' : 'Rediger denne siden') : (lang === 'en' ? 'Suggest edit to this page' : 'Foreslå endring av denne siden');
+    if (moveLabel) moveLabel.textContent = canWrite ? (lang === 'en' ? 'Move this chapter' : 'Flytt dette kapitlet') : (lang === 'en' ? 'Suggest moving this chapter' : 'Foreslå flytting av kapittel');
+  });
+}
+function samtuResetMenuLabels() {
+  var lang = window._samtuThisPage ? window._samtuThisPage.lang : 'nb';
+  var editLabel = document.getElementById('samtu-edit-page-label');
+  var moveLabel = document.getElementById('samtu-move-label');
+  if (editLabel) editLabel.textContent = lang === 'en' ? 'Edit this page' : 'Rediger denne siden';
+  if (moveLabel) moveLabel.textContent = lang === 'en' ? 'Move this chapter' : 'Flytt dette kapitlet';
 }
 
 function samtuLogout() {

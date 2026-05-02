@@ -187,7 +187,7 @@
     <li>
       <a href="#" onclick="openEditDialog('{{ $githubRepo }}', '{{ $dirPath }}/_index.{{ $lang }}.md', '{{ $lang }}', {{ .Title | jsonify }}, '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-pencil"></i>
-        <span>{{ cond (eq $lang "en") "Edit this page" "Rediger denne siden" }}</span>
+        <span id="samtu-edit-page-label">{{ cond (eq $lang "en") "Edit this page" "Rediger denne siden" }}</span>
       </a>
     </li>
     {{ end }}
@@ -211,7 +211,7 @@
     <li>
       <a href="#" onclick="enterMoveMode('{{ $githubRepo }}', '{{ $dirPath }}', '{{ $lang }}', '{{ .RelPermalink }}'); return false;">
         <i class="fa fa-arrows"></i>
-        <span>{{ cond (eq $lang "en") "Move this chapter" "Flytt dette kapitlet" }}</span>
+        <span id="samtu-move-label">{{ cond (eq $lang "en") "Move this chapter" "Flytt dette kapitlet" }}</span>
       </a>
     </li>
     {{ end }}
