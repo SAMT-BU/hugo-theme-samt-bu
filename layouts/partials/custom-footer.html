@@ -2447,6 +2447,7 @@ setTimeout(function() {
     document.getElementById('cm-section').placeholder = isEn
       ? 'e.g. https://\u2026#heading'
       : 'f.eks. https://\u2026#overskrift';
+    document.getElementById('cm-section').value = window.location.hash ? window.location.href : '';
 
     overlay.style.display = 'flex';
     window._applyDialogPos && window._applyDialogPos('cm-overlay');
