@@ -561,7 +561,9 @@ setTimeout(function() {
         for (var i = 0; i < data.workflow_runs.length; i++) {
           var run = data.workflow_runs[i];
           if (new Date(run.created_at).getTime() < p2.firstSaveAt - 30000) break;
-          var isMine = !p2.actor || (run.triggering_actor && run.triggering_actor.login === p2.actor);
+          var isMine = !p2.actor ||
+            (run.triggering_actor && run.triggering_actor.login === p2.actor) ||
+            (p2.moduleRepo && run.event === 'repository_dispatch' && run.triggering_actor && run.triggering_actor.login === 'samt-x-bot');
           if (run.status === 'completed') {
             if (isMine) {
               if (run.conclusion === 'success') myCompletedTotal++;
@@ -1981,8 +1983,13 @@ setTimeout(function() {
       }
       var w = document.getElementById('qe-build-warning');
       if (w) w.style.display = 'none';
+      var _isModuleRepo = (qeRepo !== 'samt-bu-docs');
       samtuIncrementPending();
-      pollQeBuild(startTime, qeOldEtag);
+      if (_isModuleRepo) {
+        var _mp = samtuGetPending();
+        if (_mp) { _mp.moduleRepo = true; try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify(_mp)); } catch(e) {} }
+      }
+      pollQeBuild(startTime, qeOldEtag, _isModuleRepo);
     }
 
     function onPrSuccess(pr) {
@@ -2048,7 +2055,7 @@ setTimeout(function() {
     });
   });
 
-  function pollQeBuild(startTime, oldEtag) {
+  function pollQeBuild(startTime, oldEtag, isModuleRepo) {
     if (qePollTimer) { clearInterval(qePollTimer); qePollTimer = null; }
     var lang = qeLang;
     var url = qePermalink;
@@ -2118,8 +2125,28 @@ setTimeout(function() {
         fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cf=' + Date.now(), { method: 'HEAD', cache: 'no-store' })
           .then(function(r) {
             var newEtag = r.headers.get('etag') || r.headers.get('last-modified');
-            if (r.ok && newEtag && newEtag !== oldEtag) { samtuPlaySuccess(); onBuildDone(); }
-            else setStatus(lang === 'en' ? 'Updating site (' + attempts + 's)…' : 'Nettsted oppdateres (' + attempts + ' sek)…');
+            if (r.ok && newEtag && newEtag !== oldEtag) {
+              if (!isModuleRepo) { samtuPlaySuccess(); onBuildDone(); return; }
+              // Modul-repo-redigering: ETag kan ha endret seg fra en annen jobb. Verifiser
+              // at en repository_dispatch-kjøring faktisk er ferdig før vi erklærer done.
+              oldEtag = newEtag; // oppdater slik at neste poll ikke re-trigger sjekken
+              var _h2 = { 'Accept': 'application/vnd.github+json' };
+              var _tok2 = getStoredToken(); if (_tok2) _h2['Authorization'] = 'token ' + _tok2;
+              fetch('https://api.github.com/repos/SAMT-X/samt-bu-docs/actions/workflows/hugo.yml/runs?per_page=5&event=repository_dispatch', { headers: _h2, cache: 'no-store' })
+                .then(function(r2) { return r2.json(); })
+                .then(function(d2) {
+                  var ok = false;
+                  if (d2.workflow_runs) {
+                    for (var j = 0; j < d2.workflow_runs.length; j++) {
+                      var dr = d2.workflow_runs[j];
+                      if (new Date(dr.created_at).getTime() >= startTime - 30000 && dr.status === 'completed' && dr.conclusion === 'success') { ok = true; break; }
+                    }
+                  }
+                  if (ok) { samtuPlaySuccess(); onBuildDone(); }
+                  // else: fortsett polling – neste ETag-endring er trolig vår dispatch-jobb
+                })
+                .catch(function() { samtuPlaySuccess(); onBuildDone(); }); // fail-safe: gå videre ved API-feil
+            } else setStatus(lang === 'en' ? 'Updating site (' + attempts + 's)…' : 'Nettsted oppdateres (' + attempts + ' sek)…');
           })
           .catch(function() { setStatus('Venter…'); });
       }, 1000);
