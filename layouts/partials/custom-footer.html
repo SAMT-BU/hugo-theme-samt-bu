@@ -276,7 +276,7 @@ function samtuIncrementPending() {
   var now = Date.now();
   var actor = localStorage.getItem('samt-bu-gh-user') || '';
   var newCount = (p.count || 0) + 1;
-  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: newCount, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0, seenCancelled: p.seenCancelled || 0, actor: p.actor || actor })); } catch(e) {}
+  try { localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({ count: newCount, firstSaveAt: p.firstSaveAt || now, lastSaveAt: now, seenCompleted: p.seenCompleted || 0, seenCancelled: p.seenCancelled || 0, actor: p.actor || actor, moduleRepo: p.moduleRepo || false })); } catch(e) {}
   samtuShowPendingIndicator(newCount);
 }
 function samtuDecrementPending() {
@@ -604,7 +604,8 @@ setTimeout(function() {
           try {
             localStorage.setItem(SAMTU_PENDING_KEY, JSON.stringify({
               count: newCount, firstSaveAt: p2.firstSaveAt, lastSaveAt: p2.lastSaveAt,
-              seenCompleted: myCompletedTotal, seenCancelled: myCancelledTotal, actor: p2.actor
+              seenCompleted: myCompletedTotal, seenCancelled: myCancelledTotal, actor: p2.actor,
+              moduleRepo: p2.moduleRepo || false
             }));
           } catch(e) {}
           samtuShowPendingIndicatorWithTotal(newCount, totalActive);
