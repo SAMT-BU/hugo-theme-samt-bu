@@ -338,6 +338,12 @@ function samtuHideExternalBuildIndicator() {
   ind.style.display = 'none';
   delete ind.dataset.external;
 }
+function samtuHasVisibleDialog() {
+  return ['qe-overlay', 'np-overlay', 'del-overlay', 'cm-overlay'].some(function(id) {
+    var el = document.getElementById(id);
+    return el && el.style.display !== 'none';
+  });
+}
 
 // Lydsignal ved ferdig bygg – beep (Web Audio) + tale (Web Speech)
 // Chrome blokkerer AudioContext og speechSynthesis fra setInterval uten brukergestus.
@@ -595,9 +601,11 @@ setTimeout(function() {
             doneSpeech += ', ' + _numWord(othersActive) + ' other update ' + (othersActive === 1 ? 'job' : 'jobs') + ' in progress';
           }
           samtuPlaySuccess(doneSpeech);
-          setTimeout(function() {
-            window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
-          }, 1800);
+          if (!samtuHasVisibleDialog()) {
+            setTimeout(function() {
+              window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
+            }, 1800);
+          }
         } else if (newCompletions > 0 || newCancellations > 0) {
           // Nye fullføringer eller kanseller – oppdater teller og lagret tilstand
           var newCount = Math.max(1, (p2.count || 0) - newCompletions);
@@ -2292,12 +2300,22 @@ setTimeout(function() {
           knownEtag = newEtag;
           clearInterval(bgTimer);
           if (p && p.count) {
-            // Egne ventende endringer – last inn (checkCompletions håndterer dekrement)
-            window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
+            // Egne ventende endringer – last inn, men ikke hvis en dialog er åpen
+            if (!samtuHasVisibleDialog()) {
+              window.location.href = window.location.href.split('?')[0] + '?_=' + Date.now();
+            } else {
+              var banner = document.getElementById('page-update-banner');
+              if (banner) banner.style.display = 'flex';
+            }
           } else if (bgExternalRun) {
-            // Eksternt bygg er ferdig – auto-last inn (ikke banner)
+            // Eksternt bygg er ferdig – auto-last inn, men ikke hvis en dialog er åpen
             stopBgFastPoll();
-            window.location.href = pageUrl + '?_=' + Date.now();
+            if (!samtuHasVisibleDialog()) {
+              window.location.href = pageUrl + '?_=' + Date.now();
+            } else {
+              var banner = document.getElementById('page-update-banner');
+              if (banner) banner.style.display = 'flex';
+            }
           } else {
             // Ukjent endring – vis oppdateringsbanner
             var banner = document.getElementById('page-update-banner');
