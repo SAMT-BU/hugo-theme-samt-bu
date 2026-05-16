@@ -378,7 +378,33 @@ function samtuHasVisibleDialog() {
     }
   }, true);
 
-  // Fang navigasjonsklikk med ulagret innhold – vis vår egen bekreftelse i stedet for beforeunload
+  // Egen bekreftelsesdialog – ingen nettleser-prefiks, full kontroll over tekst
+  function samtuConfirmNav(msg, onConfirm) {
+    var isEn = document.documentElement.lang === 'en';
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.3);padding:1.5rem 1.8rem;max-width:420px;width:90vw;font-family:inherit;font-size:16px;color:#222;';
+    var txt = document.createElement('p');
+    txt.style.cssText = 'margin:0 0 1.3rem;line-height:1.55;';
+    txt.textContent = msg;
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:.7rem;justify-content:flex-end;';
+    var stayBtn = document.createElement('button');
+    stayBtn.textContent = isEn ? 'Stay' : 'Bli på siden';
+    stayBtn.style.cssText = 'padding:.5rem 1.2rem;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-size:15px;font-family:inherit;';
+    var leaveBtn = document.createElement('button');
+    leaveBtn.textContent = isEn ? 'Discard and navigate' : 'Forkast og naviger';
+    leaveBtn.style.cssText = 'padding:.5rem 1.2rem;border:none;border-radius:5px;background:#1a4a8a;color:#fff;cursor:pointer;font-size:15px;font-family:inherit;font-weight:600;';
+    stayBtn.addEventListener('click', function() { wrap.remove(); });
+    leaveBtn.addEventListener('click', function() { wrap.remove(); onConfirm(); });
+    row.appendChild(stayBtn); row.appendChild(leaveBtn);
+    box.appendChild(txt); box.appendChild(row);
+    wrap.appendChild(box); document.body.appendChild(wrap);
+    stayBtn.focus();
+  }
+
+  // Fang navigasjonsklikk med ulagret innhold
   document.addEventListener('click', function(e) {
     if (!hasUnsavedDialog()) return;
     var link = e.target.closest('a[href]');
@@ -388,10 +414,11 @@ function samtuHasVisibleDialog() {
     e.preventDefault();
     e.stopImmediatePropagation();
     var isEn = document.documentElement.lang === 'en';
+    var dest = link.href;
     var msg = isEn
-      ? 'You have unsaved content in the open dialog.\n\nLeave this page and discard the content?'
-      : 'Du har ulagret innhold i den åpne dialogen.\n\nVil du forlate siden og forkaste innholdet?';
-    if (window.confirm(msg)) { window.location.href = link.href; }
+      ? 'The open dialog has unsaved content. Close the dialog and discard the changes?'
+      : 'Den åpne dialogen har ulagret innhold. Vil du lukke denne dialogboksen og forkaste endringene?';
+    samtuConfirmNav(msg, function() { window.location.href = dest; });
   }, true);
 })();
 
