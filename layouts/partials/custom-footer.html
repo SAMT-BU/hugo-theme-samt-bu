@@ -350,6 +350,13 @@ function samtuHasVisibleDialog() {
   var CANCEL_IDS  = ['qe-cancel-btn', 'np-cancel', 'del-cancel', 'del-close-x',
                      'del-panel-close', 'del-back-btn', 'cm-cancel-btn'];
 
+  function hasUnsavedDialog() {
+    return OVERLAY_IDS.some(function(id) {
+      var el = document.getElementById(id);
+      return el && el.style.display !== 'none' && el.dataset.dirty === '1';
+    });
+  }
+
   // Sett dirty når overlay vises, fjern når det skjules
   OVERLAY_IDS.forEach(function(id) {
     var el = document.getElementById(id);
@@ -371,13 +378,21 @@ function samtuHasVisibleDialog() {
     }
   }, true);
 
-  window.addEventListener('beforeunload', function(e) {
-    var hasDirty = OVERLAY_IDS.some(function(id) {
-      var el = document.getElementById(id);
-      return el && el.style.display !== 'none' && el.dataset.dirty === '1';
-    });
-    if (hasDirty) { e.preventDefault(); e.returnValue = ''; }
-  });
+  // Fang navigasjonsklikk med ulagret innhold – vis vår egen bekreftelse i stedet for beforeunload
+  document.addEventListener('click', function(e) {
+    if (!hasUnsavedDialog()) return;
+    var link = e.target.closest('a[href]');
+    if (!link) return;
+    var href = link.getAttribute('href') || '';
+    if (!href || href.startsWith('#') || href.startsWith('javascript') || link.target === '_blank') return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var isEn = document.documentElement.lang === 'en';
+    var msg = isEn
+      ? 'You have unsaved content in the open dialog.\n\nLeave this page and discard the content?'
+      : 'Du har ulagret innhold i den åpne dialogen.\n\nVil du forlate siden og forkaste innholdet?';
+    if (window.confirm(msg)) { window.location.href = link.href; }
+  }, true);
 })();
 
 // Lydsignal ved ferdig bygg – beep (Web Audio) + tale (Web Speech)
