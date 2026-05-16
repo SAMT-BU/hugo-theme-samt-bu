@@ -344,12 +344,41 @@ function samtuHasVisibleDialog() {
     return el && el.style.display !== 'none';
   });
 }
-window.addEventListener('beforeunload', function(e) {
-  if (samtuHasVisibleDialog()) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-});
+(function() {
+  var OVERLAY_IDS = ['qe-overlay', 'np-overlay', 'del-overlay', 'cm-overlay'];
+  var COMMIT_IDS  = ['qe-save-btn', 'np-submit', 'del-confirm-btn', 'del-final-btn', 'cm-submit'];
+  var CANCEL_IDS  = ['qe-cancel-btn', 'np-cancel', 'del-cancel', 'del-close-x',
+                     'del-panel-close', 'del-back-btn', 'cm-cancel-btn'];
+
+  // Sett dirty når overlay vises, fjern når det skjules
+  OVERLAY_IDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    new MutationObserver(function() {
+      if (el.style.display !== 'none') { el.dataset.dirty = '1'; }
+      else { delete el.dataset.dirty; }
+    }).observe(el, { attributes: true, attributeFilter: ['style'] });
+  });
+
+  // Fjern dirty umiddelbart ved Lagre eller Avbryt – bygget kjører i bakgrunnen
+  document.addEventListener('click', function(e) {
+    var id = e.target && e.target.id;
+    if (COMMIT_IDS.indexOf(id) !== -1 || CANCEL_IDS.indexOf(id) !== -1) {
+      OVERLAY_IDS.forEach(function(oid) {
+        var el = document.getElementById(oid);
+        if (el) delete el.dataset.dirty;
+      });
+    }
+  }, true);
+
+  window.addEventListener('beforeunload', function(e) {
+    var hasDirty = OVERLAY_IDS.some(function(id) {
+      var el = document.getElementById(id);
+      return el && el.style.display !== 'none' && el.dataset.dirty === '1';
+    });
+    if (hasDirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
 
 // Lydsignal ved ferdig bygg – beep (Web Audio) + tale (Web Speech)
 // Chrome blokkerer AudioContext og speechSynthesis fra setInterval uten brukergestus.
