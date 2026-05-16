@@ -344,6 +344,12 @@ function samtuHasVisibleDialog() {
     return el && el.style.display !== 'none';
   });
 }
+window.addEventListener('beforeunload', function(e) {
+  if (samtuHasVisibleDialog()) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 // Lydsignal ved ferdig bygg – beep (Web Audio) + tale (Web Speech)
 // Chrome blokkerer AudioContext og speechSynthesis fra setInterval uten brukergestus.
