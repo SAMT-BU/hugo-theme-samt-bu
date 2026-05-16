@@ -1416,7 +1416,7 @@ setTimeout(function() {
     document.getElementById('del-error').style.display = 'none';
     document.getElementById('del-confirm-section').style.display = 'block';
     document.getElementById('del-confirm-section-2').style.display = 'none';
-    overlay.style.display = 'block';
+    overlay.style.display = 'flex';
   };
 
   function closeDialog() {
@@ -2729,7 +2729,8 @@ setTimeout(function() {
   var DIALOGS = [
     { overlayId: 'qe-overlay', headerId: 'qe-header', maxBtnId: 'qe-maximize-btn' },
     { overlayId: 'np-overlay', headerId: 'np-header', maxBtnId: 'np-maximize-btn' },
-    { overlayId: 'cm-overlay', headerId: 'cm-header', maxBtnId: 'cm-maximize-btn' }
+    { overlayId: 'cm-overlay', headerId: 'cm-header', maxBtnId: 'cm-maximize-btn' },
+    { overlayId: 'del-overlay', headerId: 'del-header', maxBtnId: null }
   ];
 
   function saveState(overlay) {
