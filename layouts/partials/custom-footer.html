@@ -2974,8 +2974,47 @@ setTimeout(function() {
   }
 
   function initResize(overlay) {
-    if (!window.ResizeObserver) return;
-    new ResizeObserver(function() { saveState(overlay); }).observe(overlay);
+    var minW = 420, minH = 280;
+    var HANDLES = [
+      { dir:'n',  css:'top:0;left:6px;right:6px;height:5px;cursor:n-resize;' },
+      { dir:'s',  css:'bottom:0;left:6px;right:6px;height:5px;cursor:s-resize;' },
+      { dir:'w',  css:'top:6px;left:0;bottom:6px;width:5px;cursor:w-resize;' },
+      { dir:'e',  css:'top:6px;right:0;bottom:6px;width:5px;cursor:e-resize;' },
+      { dir:'nw', css:'top:0;left:0;width:8px;height:8px;cursor:nw-resize;' },
+      { dir:'ne', css:'top:0;right:0;width:8px;height:8px;cursor:ne-resize;' },
+      { dir:'sw', css:'bottom:0;left:0;width:8px;height:8px;cursor:sw-resize;' },
+      { dir:'se', css:'bottom:0;right:0;width:8px;height:8px;cursor:se-resize;' }
+    ];
+    HANDLES.forEach(function(h) {
+      var el = document.createElement('div');
+      el.style.cssText = 'position:absolute;z-index:10000;' + h.css;
+      overlay.appendChild(el);
+      el.addEventListener('mousedown', function(e) {
+        if (overlay.dataset.maximized === '1') return;
+        e.preventDefault(); e.stopPropagation();
+        var sx = e.clientX, sy = e.clientY;
+        var sl = overlay.offsetLeft, st = overlay.offsetTop;
+        var sw = overlay.offsetWidth, sh = overlay.offsetHeight;
+        var dir = h.dir;
+        function onMove(ev) {
+          var dx = ev.clientX - sx, dy = ev.clientY - sy;
+          var nL = sl, nT = st, nW = sw, nH = sh;
+          if (dir.indexOf('e') !== -1) nW = Math.max(minW, sw + dx);
+          if (dir.indexOf('s') !== -1) nH = Math.max(minH, sh + dy);
+          if (dir.indexOf('w') !== -1) { nW = Math.max(minW, sw - dx); nL = sl + sw - nW; }
+          if (dir.indexOf('n') !== -1) { nH = Math.max(minH, sh - dy); nT = st + sh - nH; }
+          overlay.style.left = nL + 'px'; overlay.style.top = nT + 'px';
+          overlay.style.width = nW + 'px'; overlay.style.height = nH + 'px';
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          saveState(overlay);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
   }
 
   DIALOGS.forEach(function(d) {
