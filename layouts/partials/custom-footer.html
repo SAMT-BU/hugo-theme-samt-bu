@@ -367,7 +367,7 @@ function samtuHasVisibleDialog() {
     }).observe(el, { attributes: true, attributeFilter: ['style'] });
   });
 
-  // Fjern dirty umiddelbart ved Lagre eller Avbryt – bygget kjører i bakgrunnen
+  // Fjern dirty og session-state ved Lagre eller Avbryt
   document.addEventListener('click', function(e) {
     var id = e.target && e.target.id;
     if (COMMIT_IDS.indexOf(id) !== -1 || CANCEL_IDS.indexOf(id) !== -1) {
@@ -375,6 +375,7 @@ function samtuHasVisibleDialog() {
         var el = document.getElementById(oid);
         if (el) delete el.dataset.dirty;
       });
+      typeof _dlgClear === 'function' && _dlgClear();
     }
   }, true);
 
@@ -413,8 +414,19 @@ function samtuHasVisibleDialog() {
     if (!href || href.startsWith('#') || href.startsWith('javascript') || link.target === '_blank') return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    var isEn = document.documentElement.lang === 'en';
     var dest = link.href;
+    // qe/np/cm: lagre tilstand i sessionStorage og naviger uten advarsel (dialogen gjenopprettes på neste side)
+    var activeId = OVERLAY_IDS.filter(function(id) {
+      var el = document.getElementById(id);
+      return el && el.style.display !== 'none' && el.dataset.dirty === '1';
+    })[0];
+    if (activeId && activeId !== 'del-overlay') {
+      typeof _dlgSave === 'function' && _dlgSave();
+      window.location.href = dest;
+      return;
+    }
+    // del-overlay: vis bekreftelsesdialog (ingenting å bevare)
+    var isEn = document.documentElement.lang === 'en';
     var msg = isEn
       ? 'The open dialog has unsaved content. Close the dialog and discard the changes?'
       : 'Den åpne dialogen har ulagret innhold. Vil du lukke denne dialogboksen og forkaste endringene?';
@@ -1063,7 +1075,18 @@ setTimeout(function() {
     npDialogVisible = true;
     overlay.style.display = 'flex';
     window._applyDialogPos && window._applyDialogPos('np-overlay');
-    initNpEditor(function() { document.getElementById('np-title-nb').focus(); });
+    initNpEditor(function() {
+      var _r = window._dlgRestoring;
+      if (_r && _r.type === 'np') {
+        delete window._dlgRestoring;
+        if (npEditor && _r.content) npEditor.commands.setContent(_r.content);
+        var tNb = document.getElementById('np-title-nb');
+        if (tNb && _r.title !== undefined) tNb.value = _r.title;
+        var wEl = document.getElementById('np-weight'); if (wEl && _r.weight !== undefined) wEl.value = _r.weight;
+        var sEl = document.getElementById('np-status'); if (sEl && _r.status !== undefined) sEl.value = _r.status;
+        if (npEditor) npEditor.commands.focus();
+      } else { document.getElementById('np-title-nb').focus(); }
+    });
   };
 
   window.openNewChildDialog = function(repo, dirPath, lang, currentPermalink) {
@@ -1094,10 +1117,33 @@ setTimeout(function() {
     npDialogVisible = true;
     overlay.style.display = 'flex';
     window._applyDialogPos && window._applyDialogPos('np-overlay');
-    initNpEditor(function() { document.getElementById('np-title-nb').focus(); });
+    initNpEditor(function() {
+      var _r = window._dlgRestoring;
+      if (_r && _r.type === 'np') {
+        delete window._dlgRestoring;
+        if (npEditor && _r.content) npEditor.commands.setContent(_r.content);
+        var tNb = document.getElementById('np-title-nb');
+        if (tNb && _r.title !== undefined) tNb.value = _r.title;
+        var wEl = document.getElementById('np-weight'); if (wEl && _r.weight !== undefined) wEl.value = _r.weight;
+        var sEl = document.getElementById('np-status'); if (sEl && _r.status !== undefined) sEl.value = _r.status;
+        if (npEditor) npEditor.commands.focus();
+      } else { document.getElementById('np-title-nb').focus(); }
+    });
   };
 
   function closeDialog() { overlay.style.display = 'none'; npDialogVisible = false; }
+
+  window._dlgSaveNp = function() {
+    var el = document.getElementById('np-overlay');
+    if (!el || el.style.display === 'none' || !npEditor) return null;
+    var tNb = document.getElementById('np-title-nb');
+    return { type:'np', mode:npMode, repo:npRepo, dirPath:npParentPath, lang:npLang,
+      currentPermalink:npCurrentPermalink,
+      title:(tNb||{}).value||'',
+      weight:(document.getElementById('np-weight')||{}).value||'',
+      status:(document.getElementById('np-status')||{}).value||'',
+      content:npEditor.getJSON() };
+  };
 
   // Fix 3: stopp piltaster og andre taster fra å nå globale handlers
   overlay.addEventListener('keydown', function(e) {
@@ -1996,6 +2042,20 @@ setTimeout(function() {
           document.getElementById('qe-field-hidetoc').checked = parseFmField(qeFrontmatter, 'hide_toc') !== 'true';
           document.getElementById('qe-field-draft').checked = parseFmField(qeFrontmatter, 'draft') === 'true';
 
+          // Gjenopprett redigeringsinnhold fra sessionStorage (etter navigering)
+          var _r = window._dlgRestoring;
+          if (_r && _r.type === 'qe' && _r.filePath === qeFilePath) {
+            delete window._dlgRestoring;
+            qeEditor.commands.setContent(_r.content);
+            var ftEl = document.getElementById('qe-field-title');
+            if (ftEl && _r.fieldTitle !== undefined) ftEl.value = _r.fieldTitle;
+            var ltEl = document.getElementById('qe-field-linktitle');
+            if (ltEl && _r.fieldLinkTitle !== undefined) ltEl.value = _r.fieldLinkTitle;
+            var fwEl = document.getElementById('qe-field-weight');
+            if (fwEl && _r.fieldWeight !== undefined) fwEl.value = _r.fieldWeight;
+            var fsEl = document.getElementById('qe-field-status');
+            if (fsEl && _r.fieldStatus !== undefined) fsEl.value = _r.fieldStatus;
+          }
           setStatus('');
           saveBtn.disabled = false;
           qeEditor.commands.focus();
@@ -2014,6 +2074,18 @@ setTimeout(function() {
 
   document.getElementById('qe-cancel-btn').addEventListener('click', closeQeDialog);
   overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeQeDialog(); e.stopPropagation(); });
+
+  window._dlgSaveQe = function() {
+    var el = document.getElementById('qe-overlay');
+    if (!el || el.style.display === 'none' || !qeEditor) return null;
+    return { type:'qe', repo:qeRepo, filePath:qeFilePath, lang:qeLang,
+      pageTitle:qePageTitle, permalink:qePermalink,
+      content:qeEditor.getJSON(),
+      fieldTitle:(document.getElementById('qe-field-title')||{}).value||'',
+      fieldLinkTitle:(document.getElementById('qe-field-linktitle')||{}).value||'',
+      fieldWeight:(document.getElementById('qe-field-weight')||{}).value||'',
+      fieldStatus:(document.getElementById('qe-field-status')||{}).value||'' };
+  };
 
   document.getElementById('qe-save-btn').addEventListener('click', function() {
     var token = getStoredToken();
@@ -2575,12 +2647,33 @@ setTimeout(function() {
     overlay.style.display = 'flex';
     window._applyDialogPos && window._applyDialogPos('cm-overlay');
     initCmEditor(function() {
-      setTimeout(function() { if (cmEditor) cmEditor.commands.focus(); }, 50);
+      var _r = window._dlgRestoring;
+      if (_r && _r.type === 'cm') {
+        delete window._dlgRestoring;
+        if (cmEditor && _r.content) cmEditor.commands.setContent(_r.content);
+        var ctEl = document.getElementById('cm-title');
+        if (ctEl && _r.title !== undefined) ctEl.value = _r.title;
+        var csEl = document.getElementById('cm-section');
+        if (csEl && _r.section !== undefined) csEl.value = _r.section;
+        if (cmEditor) cmEditor.commands.focus();
+      } else {
+        setTimeout(function() { if (cmEditor) cmEditor.commands.focus(); }, 50);
+      }
     });
   };
 
   document.getElementById('cm-cancel-btn').addEventListener('click', closeDialog);
   overlay.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeDialog(); e.stopPropagation(); });
+
+  window._dlgSaveCm = function() {
+    var el = document.getElementById('cm-overlay');
+    if (!el || el.style.display === 'none' || !cmEditor) return null;
+    return { type:'cm', repo:cmRepo, lang:cmLang,
+      pageTitle:cmPageTitle, permalink:cmPermalink, pageId:cmPageId,
+      title:(document.getElementById('cm-title')||{}).value||'',
+      section:(document.getElementById('cm-section')||{}).value||'',
+      content:cmEditor.getJSON() };
+  };
 
   function uploadCmImages(token, images) {
     var names = Object.keys(images);
@@ -3096,6 +3189,48 @@ setTimeout(function() {
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape' && dialog.style.display !== 'none') closeHistory();
   });
+})();
+</script>
+
+<!-- Dialog-persistens: sessionStorage – dialogen overlever sidenavigering (lik Flytt-mønsteret) -->
+<script>
+var _dlgKey = 'samtu-dialog-state';
+function _dlgGet()   { try { return JSON.parse(sessionStorage.getItem(_dlgKey)); } catch(e) { return null; } }
+function _dlgSet(s)  { try { sessionStorage.setItem(_dlgKey, JSON.stringify(s)); } catch(e) {} }
+function _dlgClear() { try { sessionStorage.removeItem(_dlgKey); } catch(e) {} }
+
+function _dlgSave() {
+  var s = (window._dlgSaveQe && window._dlgSaveQe()) ||
+          (window._dlgSaveNp && window._dlgSaveNp()) ||
+          (window._dlgSaveCm && window._dlgSaveCm());
+  if (s) _dlgSet(s);
+}
+
+(function() {
+  var s = _dlgGet();
+  if (!s) return;
+  function tryRestore() {
+    if (s.type === 'qe' && window.openEditDialog) {
+      window._dlgRestoring = s;
+      window.openEditDialog(s.repo, s.filePath, s.lang, s.pageTitle, s.permalink);
+    } else if (s.type === 'np') {
+      window._dlgRestoring = s;
+      if (s.mode === 'child' && window.openNewChildDialog) {
+        window.openNewChildDialog(s.repo, s.dirPath, s.lang, s.currentPermalink);
+      } else if (window.openNewSiblingDialog) {
+        // null for currentWeight – gjenopprettings-callback setter eksakt lagret vekt
+        window.openNewSiblingDialog(s.repo, s.dirPath, s.lang, null, s.currentPermalink);
+      }
+    } else if (s.type === 'cm' && window.openCommentDialog) {
+      window._dlgRestoring = s;
+      window.openCommentDialog(s.repo, s.lang, s.pageTitle, s.permalink, s.pageId);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryRestore);
+  } else {
+    tryRestore();
+  }
 })();
 </script>
 
