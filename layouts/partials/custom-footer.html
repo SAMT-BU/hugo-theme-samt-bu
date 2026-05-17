@@ -100,6 +100,128 @@ function checkBuildInProgress(filePath, callback) {
     .catch(function() { callback(false); });
 }
 
+// --- Presence-system (tilstedeværelsessignaler i redigeringsdialogene) ---
+// Sett PRESENCE_ENABLED = true etter at KV-namespace er konfigurert i Cloudflare
+// og wrangler.toml er oppdatert og worker er deployet. Se cloudflare-worker/wrangler.toml.
+var PRESENCE_ENABLED = false;
+
+var _presencePage    = '';   // URL-sti for siden som er åpen i dialog
+var _presenceDialog  = '';   // 'qe' | 'np' | 'cm'
+var _presenceDirty   = false;
+var _presenceHb      = null; // heartbeat interval
+var _presencePoll    = null; // poll interval
+var _presencePrev    = [];   // forrige andre-liste (for endringsdeteksjon)
+
+function presenceOpen(dialogId, permalink) {
+  _presencePage   = '';
+  _presenceDialog = dialogId;
+  _presenceDirty  = false;
+  _presencePrev   = [];
+  try { _presencePage = new URL(permalink || window.location.href).pathname; } catch(_) {}
+  if (!PRESENCE_ENABLED || !_presencePage) return;
+  _presencePost('open');
+  _presencePollNow(dialogId);
+  _presenceHb   = setInterval(function() { _presencePost(_presenceDirty ? 'dirty' : 'open'); }, 20000);
+  _presencePoll = setInterval(function() { _presencePollNow(dialogId); }, 20000);
+}
+
+function presenceClose() {
+  clearInterval(_presenceHb);
+  clearInterval(_presencePoll);
+  _presenceHb = _presencePoll = null;
+  if (PRESENCE_ENABLED && _presencePage) _presenceDelete();
+  _presencePage = _presenceDialog = '';
+  _presenceDirty = false;
+  _presencePrev  = [];
+}
+
+function presenceMarkDirty() {
+  if (_presenceDirty) return;
+  _presenceDirty = true;
+  if (PRESENCE_ENABLED && _presencePage) _presencePost('dirty');
+}
+
+function _presencePost(state) {
+  var token = getStoredToken();
+  if (!token) return;
+  var login = localStorage.getItem('samt-bu-gh-user') || '';
+  var name  = localStorage.getItem('samt-bu-gh-name')  || login;
+  if (!login) return;
+  fetch('https://auth.samt-bu.no/presence', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'token ' + token },
+    body: JSON.stringify({ page: _presencePage, user: name, login: login, state: state })
+  }).catch(function() {});
+}
+
+function _presenceDelete() {
+  var token = getStoredToken();
+  if (!token) return;
+  var login = localStorage.getItem('samt-bu-gh-user') || '';
+  if (!login) return;
+  fetch('https://auth.samt-bu.no/presence', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'token ' + token },
+    body: JSON.stringify({ page: _presencePage, login: login })
+  }).catch(function() {});
+}
+
+function _presencePollNow(dialogId) {
+  if (!PRESENCE_ENABLED || !_presencePage) return;
+  var myLogin = localStorage.getItem('samt-bu-gh-user') || '';
+  fetch('https://auth.samt-bu.no/presence?page=' + encodeURIComponent(_presencePage), { cache: 'no-store' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var others = (data.entries || []).filter(function(e) { return e.login !== myLogin; });
+      _presenceUpdateBanner(dialogId, others);
+      _presenceCheckToast(others);
+      _presencePrev = others;
+    })
+    .catch(function() {});
+}
+
+function _presenceUpdateBanner(dialogId, others) {
+  var el = document.getElementById(dialogId + '-presence-warning');
+  if (!el) return;
+  if (!others.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  var parts = others.map(function(e) {
+    var who = '<strong>' + (e.user || e.login) + '</strong>';
+    return e.state === 'dirty'
+      ? (document.documentElement.lang === 'en' ? who + ' is editing this page' : who + ' redigerer denne siden')
+      : (document.documentElement.lang === 'en' ? who + ' has this page open' : who + ' har denne siden åpen');
+  });
+  el.innerHTML = '&#9888; ' + parts.join(' &nbsp;·&nbsp; ');
+  el.style.display = 'block';
+}
+
+function _presenceCheckToast(others) {
+  var prev = _presencePrev;
+  others.forEach(function(e) {
+    var prevEntry = prev.filter(function(p) { return p.login === e.login; })[0];
+    var isNew       = !prevEntry;
+    var wentDirty   = prevEntry && prevEntry.state !== 'dirty' && e.state === 'dirty';
+    var en = document.documentElement.lang === 'en';
+    var who = e.user || e.login;
+    if (isNew) {
+      _presenceToast(en ? who + ' opened this page' : who + ' åpnet denne siden');
+    } else if (wentDirty) {
+      _presenceToast(en ? who + ' started editing' : who + ' begynte å redigere');
+    }
+  });
+}
+
+function _presenceToast(msg) {
+  var toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed; bottom:24px; right:24px; z-index:999999; background:#37474f; color:#fff; padding:.55rem 1.1rem; border-radius:6px; font-size:.9rem; box-shadow:0 2px 10px rgba(0,0,0,.3); opacity:0; transition:opacity .25s;';
+  document.body.appendChild(toast);
+  requestAnimationFrame(function() { toast.style.opacity = '1'; });
+  setTimeout(function() {
+    toast.style.opacity = '0';
+    setTimeout(function() { toast.remove(); }, 300);
+  }, 4000);
+}
+
 // Hent og cache innlogget GitHub-brukernavn
 function fetchCurrentUser(callback) {
   var cached = localStorage.getItem('samt-bu-gh-user');
@@ -1075,6 +1197,7 @@ setTimeout(function() {
     npDialogVisible = true;
     overlay.style.display = 'flex';
     window._applyDialogPos && window._applyDialogPos('np-overlay');
+    fetchCurrentUser(function() { presenceOpen('np', currentPermalink); });
     initNpEditor(function() {
       var _r = window._dlgRestoring;
       if (_r && _r.type === 'np') {
@@ -1117,6 +1240,7 @@ setTimeout(function() {
     npDialogVisible = true;
     overlay.style.display = 'flex';
     window._applyDialogPos && window._applyDialogPos('np-overlay');
+    fetchCurrentUser(function() { presenceOpen('np', currentPermalink); });
     initNpEditor(function() {
       var _r = window._dlgRestoring;
       if (_r && _r.type === 'np') {
@@ -1131,7 +1255,7 @@ setTimeout(function() {
     });
   };
 
-  function closeDialog() { overlay.style.display = 'none'; npDialogVisible = false; }
+  function closeDialog() { presenceClose(); overlay.style.display = 'none'; npDialogVisible = false; }
 
   window._dlgSaveNp = function() {
     var el = document.getElementById('np-overlay');
@@ -1153,10 +1277,10 @@ setTimeout(function() {
 
   document.getElementById('np-cancel').addEventListener('click', closeDialog);
 
-  // Fix 1: skjul feilmelding så snart brukeren begynner å rette
+  // Fix 1: skjul feilmelding og merk dirty ved første input
   ['np-title-nb', 'np-linktitle-nb', 'np-weight', 'np-status'].forEach(function(id) {
     var el = document.getElementById(id);
-    if (el) el.addEventListener('input', hideMsg);
+    if (el) el.addEventListener('input', function() { hideMsg(); presenceMarkDirty(); });
   });
 
   document.getElementById('np-form').addEventListener('submit', function(e) {
@@ -1959,8 +2083,8 @@ setTimeout(function() {
       var w = document.getElementById('qe-build-warning');
       if (w) w.style.display = active ? 'block' : 'none';
     });
-    // Varm opp brukernavn-cache for bruk ved lagring
-    fetchCurrentUser(function() {});
+    // Varm opp brukernavn-cache og start presence-sporing
+    fetchCurrentUser(function() { presenceOpen('qe', permalink); });
 
     loadTiptap(function() {
       var T = window._Tiptap;
@@ -2059,12 +2183,20 @@ setTimeout(function() {
           setStatus('');
           saveBtn.disabled = false;
           qeEditor.commands.focus();
+
+          // Dirty-deteksjon: merk endring ved første TipTap-oppdatering eller feltendring
+          qeEditor.on('update', function() { presenceMarkDirty(); });
+          ['qe-field-title','qe-field-linktitle','qe-field-weight','qe-field-status','qe-field-hidetoc'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('change', function() { presenceMarkDirty(); }, { once: true });
+          });
         })
         .catch(function(err) { setStatus('Feil ved innlasting: ' + err.message); });
     });
   };
 
   function closeQeDialog() {
+    presenceClose();
     overlay.style.display = 'none';
     if (qePollTimer) {
       var ind = document.getElementById('qe-job-indicator');
@@ -2592,6 +2724,7 @@ setTimeout(function() {
   }
 
   function closeDialog() {
+    presenceClose();
     overlay.style.display = 'none';
     if (cmEditor) cmEditor.commands.setContent('');
     cmImages = {}; cmImageMap = {};
@@ -2646,7 +2779,9 @@ setTimeout(function() {
 
     overlay.style.display = 'flex';
     window._applyDialogPos && window._applyDialogPos('cm-overlay');
+    fetchCurrentUser(function() { presenceOpen('cm', permalink); });
     initCmEditor(function() {
+      cmEditor.on('update', function() { presenceMarkDirty(); });
       var _r = window._dlgRestoring;
       if (_r && _r.type === 'cm') {
         delete window._dlgRestoring;
@@ -2660,6 +2795,7 @@ setTimeout(function() {
         setTimeout(function() { if (cmEditor) cmEditor.commands.focus(); }, 50);
       }
     });
+    document.getElementById('cm-title').addEventListener('input', function() { presenceMarkDirty(); }, { once: true });
   };
 
   document.getElementById('cm-cancel-btn').addEventListener('click', closeDialog);
