@@ -605,6 +605,9 @@
     {{- else if or (eq $d2 "pilotering/pilot-4") (hasPrefix $d2 "pilotering/pilot-4/") -}}
       {{- $x2 = true -}}{{- $r2 = "samt-bu-pilot-4" -}}
       {{- $rl2 = strings.TrimPrefix "/" (strings.TrimPrefix "pilotering/pilot-4" $d2) -}}
+    {{- else if or (eq $d2 "ekstern-markedsdialog") (hasPrefix $d2 "ekstern-markedsdialog/") -}}
+      {{- $x2 = true -}}{{- $r2 = "samt-bu-market-engagement" -}}
+      {{- $rl2 = strings.TrimPrefix "/" (strings.TrimPrefix "ekstern-markedsdialog" $d2) -}}
     {{- else -}}
       {{- $rl2 = strings.TrimPrefix "/" (strings.TrimPrefix "." $d2) -}}
     {{- end -}}
